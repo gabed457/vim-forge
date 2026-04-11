@@ -36,6 +36,178 @@ pub enum Awaiting {
     MacroPlay,
     ReplaceChar,
     CtrlW,
+    TextObjectInner,
+    TextObjectAround,
+}
+
+/// Categories for the hierarchical insert sub-menu system.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InsertCategoryKind {
+    Conveyors,
+    Pipes,
+    ProcessingT1,
+    ProcessingT2,
+    ProcessingT4,
+    Energy,
+    Logistics,
+    Transport,
+    Research,
+    Waste,
+    Utility,
+    Circuit,
+    Balancers,
+    FluidExtras,
+    Storage,
+}
+
+impl InsertCategoryKind {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Conveyors => "Conveyors",
+            Self::Pipes => "Pipes",
+            Self::ProcessingT1 => "Processing T1",
+            Self::ProcessingT2 => "Processing T2+",
+            Self::ProcessingT4 => "Processing T4",
+            Self::Energy => "Energy",
+            Self::Logistics => "Logistics",
+            Self::Transport => "Transport",
+            Self::Research => "Research",
+            Self::Waste => "Waste",
+            Self::Utility => "Utility",
+            Self::Circuit => "Circuit",
+            Self::Balancers => "Balancers",
+            Self::FluidExtras => "Fluid Extras",
+            Self::Storage => "Storage",
+        }
+    }
+}
+
+/// Resolve a key within a category to an EntityType.
+fn resolve_category_key(cat: InsertCategoryKind, c: char) -> Option<EntityType> {
+    match cat {
+        InsertCategoryKind::Conveyors => match c {
+            '1' => Some(EntityType::BasicBelt),
+            '2' => Some(EntityType::FastBelt),
+            '3' => Some(EntityType::ExpressBelt),
+            'u' => Some(EntityType::UndergroundEntrance),
+            'U' => Some(EntityType::UndergroundExit),
+            _ => None,
+        },
+        InsertCategoryKind::Pipes => match c {
+            'p' => Some(EntityType::Pipe),
+            'j' => Some(EntityType::PipeJunction),
+            's' => Some(EntityType::PumpStation),
+            't' => Some(EntityType::FluidTank),
+            'g' => Some(EntityType::GasCompressor),
+            'l' => Some(EntityType::GasPipeline),  // Changed from 'n' to 'l'
+            _ => None,
+        },
+        InsertCategoryKind::ProcessingT1 => match c {
+            's' => Some(EntityType::Smelter),
+            'k' => Some(EntityType::Kiln),
+            'p' => Some(EntityType::Press),
+            'w' => Some(EntityType::WireMill),
+            'm' => Some(EntityType::PlateMachine),
+            'v' => Some(EntityType::RubberVulcanizer),
+            'd' => Some(EntityType::PlasticMolder),
+            'e' => Some(EntityType::Electrolyzer),
+            'c' => Some(EntityType::Caster),
+            'f' => Some(EntityType::CokeFurnace),
+            'g' => Some(EntityType::Gasifier),
+            'b' => Some(EntityType::Boiler),
+            'x' => Some(EntityType::WaferCutter),
+            _ => None,
+        },
+        InsertCategoryKind::ProcessingT2 => match c {
+            'a' => Some(EntityType::Assembler),
+            'm' => Some(EntityType::Mixer),
+            'c' => Some(EntityType::ChemicalPlant),
+            'i' => Some(EntityType::CircuitFabricator),
+            'o' => Some(EntityType::MotorAssembly),
+            'r' => Some(EntityType::CrushingMill),
+            'd' => Some(EntityType::AdvancedAssembler),
+            'f' => Some(EntityType::Refinery),
+            't' => Some(EntityType::CrackingTower),
+            'n' => Some(EntityType::Cleanroom),
+            'e' => Some(EntityType::EnrichmentCascade),
+            'p' => Some(EntityType::CoolantProcessor),
+            _ => None,
+        },
+        InsertCategoryKind::ProcessingT4 => match c {
+            'p' => Some(EntityType::PrecisionAssembler),
+            'q' => Some(EntityType::QuantumLab),
+            'r' => Some(EntityType::RocketAssembly),
+            'm' => Some(EntityType::Megassembler),
+            's' => Some(EntityType::SingularityLab),
+            _ => None,
+        },
+        InsertCategoryKind::Energy => match c {
+            'c' => Some(EntityType::CoalGenerator),
+            'g' => Some(EntityType::GasGenerator),
+            's' => Some(EntityType::SolarArray),
+            'w' => Some(EntityType::WindTurbine),
+            't' => Some(EntityType::GeothermalPlant),
+            'n' => Some(EntityType::NuclearReactor),
+            'f' => Some(EntityType::FusionReactor),
+            'x' => Some(EntityType::Transformer),
+            'p' => Some(EntityType::PowerPole),
+            'u' => Some(EntityType::Substation),
+            'b' => Some(EntityType::BatteryBank),
+            'a' => Some(EntityType::Accumulator),
+            _ => None,
+        },
+        InsertCategoryKind::Storage => match c {
+            'w' => Some(EntityType::Warehouse),
+            's' => Some(EntityType::SiloHopper),
+            'c' => Some(EntityType::CryoTank),
+            'v' => Some(EntityType::ContainmentVault),
+            _ => None,
+        },
+        InsertCategoryKind::Logistics => match c {
+            'd' => Some(EntityType::DronePort),
+            _ => None,
+        },
+        InsertCategoryKind::Transport => match c {
+            'r' => Some(EntityType::RailTrack),
+            's' => Some(EntityType::TrainStation),
+            'd' => Some(EntityType::DronePort),
+            _ => None,
+        },
+        InsertCategoryKind::Research => match c {
+            '1' => Some(EntityType::ResearchLab),
+            '2' => Some(EntityType::AdvancedLab),
+            _ => None,
+        },
+        InsertCategoryKind::Waste => match c {
+            'd' => Some(EntityType::WasteDump),
+            'r' => Some(EntityType::RecyclingPlant),
+            'i' => Some(EntityType::IncinerationPlant),
+            'f' => Some(EntityType::FilterStack),
+            's' => Some(EntityType::ScrubberUnit),
+            'c' => Some(EntityType::ContainmentField),
+            _ => None,
+        },
+        InsertCategoryKind::Utility => match c {
+            'w' => Some(EntityType::Wall),
+            'r' => Some(EntityType::ReinforcedWall),
+            't' => Some(EntityType::Turret),
+            's' => Some(EntityType::ShieldGenerator),
+            _ => None,
+        },
+        InsertCategoryKind::Circuit => {
+            // No circuit entities exist yet
+            None
+        },
+        InsertCategoryKind::Balancers => match c {
+            's' => Some(EntityType::Splitter),
+            'm' => Some(EntityType::Merger),
+            _ => None,
+        },
+        InsertCategoryKind::FluidExtras => match c {
+            'p' => Some(EntityType::PumpStation),
+            _ => None,
+        },
+    }
 }
 
 /// The main vim input parser state machine.
@@ -47,6 +219,7 @@ pub struct VimParser {
     count2: Option<usize>,
     awaiting: Awaiting,
     pub insert_facing: Facing,
+    pub insert_category: Option<InsertCategoryKind>,
     pub recording_macro: Option<char>,
     pub macro_keystrokes: Vec<KeyEvent>,
     pub command_buffer: String,
@@ -71,6 +244,7 @@ impl VimParser {
             count2: None,
             awaiting: Awaiting::Nothing,
             insert_facing: Facing::Right,
+            insert_category: None,
             recording_macro: None,
             macro_keystrokes: Vec::new(),
             command_buffer: String::new(),
@@ -145,6 +319,8 @@ impl VimParser {
             Awaiting::MacroPlay => return self.handle_macro_play(key),
             Awaiting::ReplaceChar => return self.handle_replace_char(key),
             Awaiting::CtrlW => return self.handle_ctrl_w(key),
+            Awaiting::TextObjectInner => return self.handle_text_object_resolve(key, true),
+            Awaiting::TextObjectAround => return self.handle_text_object_resolve(key, false),
             Awaiting::Nothing | Awaiting::Operator | Awaiting::Motion => {}
         }
 
@@ -292,12 +468,12 @@ impl VimParser {
 
             // Text objects (only valid after an operator)
             KeyCode::Char('i') if mods.is_empty() && self.operator.is_some() => {
-                self.awaiting = Awaiting::Motion;
+                self.awaiting = Awaiting::TextObjectInner;
                 self.command_buffer.push('i');
                 vec![]
             }
             KeyCode::Char('a') if mods.is_empty() && self.operator.is_some() => {
-                self.awaiting = Awaiting::Motion;
+                self.awaiting = Awaiting::TextObjectAround;
                 self.command_buffer.push('a');
                 vec![]
             }
@@ -466,6 +642,12 @@ impl VimParser {
             KeyCode::Char('~') => {
                 self.reset_pending();
                 vec![Command::ToggleFacing]
+            }
+
+            // Contract board
+            KeyCode::Char('b') if mods.contains(KeyModifiers::CONTROL) => {
+                self.reset_pending();
+                vec![Command::CmdContracts]
             }
 
             // Toggle sidebar
@@ -801,10 +983,9 @@ impl VimParser {
         cmd.into_iter().collect()
     }
 
-    /// Handle text objects after operator + i/a.
-    /// Called when we have an operator and the user typed 'i' or 'a' followed by
-    /// a text object key.
-    fn _handle_text_object_key(&mut self, _inner: bool, key: KeyEvent) -> Vec<Command> {
+    /// Handle text object resolution after operator + i/a + object key.
+    /// Produces a TextObjectOp command encoding the operator, inner/around, and object char.
+    fn handle_text_object_resolve(&mut self, key: KeyEvent, inner: bool) -> Vec<Command> {
         let obj_char = match key.code {
             KeyCode::Char(c) => c,
             KeyCode::Esc => {
@@ -817,43 +998,16 @@ impl VimParser {
             }
         };
 
-        // This is used as a signal to the handler about what text object to compute.
-        // The handler will compute the actual Range based on the text object type.
-        // We produce the operator command with an empty range; the handler
-        // interprets the presence of preceding motion commands to know the object.
-        // For simplicity, we encode the text object as a special motion command
-        // that the handler understands.
-
-        // Actually, let's just reset and return nothing if invalid
-        self.command_buffer.push(obj_char);
-
-        // Valid text objects: w, p, b, (, )
-        let _valid = matches!(obj_char, 'w' | 'p' | 'b' | '(' | ')');
-        if !_valid {
+        // Valid text objects: w (word/entity), p (paragraph), b/(/() (block/enclosure)
+        if !matches!(obj_char, 'w' | 'p' | 'b' | '(' | ')') {
             self.reset_pending();
             return vec![];
         }
 
-        // The operator should still be set -- produce the operator command.
-        // The handler needs to know: operator, inner/around, object type.
-        // We'll return the operator with the range set to empty and rely on
-        // the handler to re-interpret. Instead, let's return the info as commands.
         if let Some(op) = self.operator.take() {
             let reg = self.register;
-            let cmd = match op {
-                Operator::Delete => Command::Demolish(Range::empty()),
-                Operator::Yank => Command::Yank(Range::empty(), reg),
-                Operator::Change => Command::Change(Range::empty()),
-                Operator::RotateCW => Command::RotateCW(Range::empty()),
-                Operator::RotateCCW => Command::RotateCCW(Range::empty()),
-            };
             self.reset_pending();
-            // Encode the text object info in a way the handler can use.
-            // We return the operator command; the command_buffer will have been
-            // set with the full sequence for the handler to parse.
-            // Actually, we need a better approach. Let's not use command_buffer.
-            // Instead, we return the info directly.
-            vec![cmd]
+            vec![Command::TextObjectOp(op, inner, obj_char, reg)]
         } else {
             self.reset_pending();
             vec![]
@@ -867,34 +1021,99 @@ impl VimParser {
     fn handle_insert(&mut self, key: KeyEvent) -> Vec<Command> {
         let mods = key.modifiers;
 
+        // --- Universal keys (work in both stages) ---
         match key.code {
             KeyCode::Esc => {
+                if self.insert_category.is_some() {
+                    // Stage 2 → back to stage 1
+                    self.insert_category = None;
+                    return vec![];
+                }
+                // Stage 1 → normal mode
                 self.mode = Mode::Normal;
+                self.insert_category = None;
                 self.reset_pending();
-                vec![Command::ExitToNormal]
+                return vec![Command::ExitToNormal];
             }
+            KeyCode::Backspace => return vec![Command::InsertBackspace],
+            // Shift+HJKL: change facing + move (always available)
+            KeyCode::Char('H') => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Left),
+                    Command::InsertMoveOnly(Direction::Left),
+                ];
+            }
+            KeyCode::Char('J') => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Down),
+                    Command::InsertMoveOnly(Direction::Down),
+                ];
+            }
+            KeyCode::Char('K') => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Up),
+                    Command::InsertMoveOnly(Direction::Up),
+                ];
+            }
+            KeyCode::Char('L') => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Right),
+                    Command::InsertMoveOnly(Direction::Right),
+                ];
+            }
+            // Arrow keys: change facing + move (always available)
+            KeyCode::Left => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Left),
+                    Command::InsertMoveOnly(Direction::Left),
+                ];
+            }
+            KeyCode::Right => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Right),
+                    Command::InsertMoveOnly(Direction::Right),
+                ];
+            }
+            KeyCode::Up => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Up),
+                    Command::InsertMoveOnly(Direction::Up),
+                ];
+            }
+            KeyCode::Down => {
+                return vec![
+                    Command::SetInsertFacing(Facing::Down),
+                    Command::InsertMoveOnly(Direction::Down),
+                ];
+            }
+            _ => {}
+        }
 
-            // Place entities
-            KeyCode::Char('s') if mods.is_empty() => {
-                vec![Command::PlaceEntity(EntityType::Smelter)]
+        // --- Stage 2: category selected → resolve building from key ---
+        if let Some(cat) = self.insert_category {
+            if let KeyCode::Char(c) = key.code {
+                // hjkl are still movement in category mode
+                if mods.is_empty() {
+                    match c {
+                        'h' => return vec![Command::InsertMoveOnly(Direction::Left)],
+                        'j' => return vec![Command::InsertMoveOnly(Direction::Down)],
+                        'k' => return vec![Command::InsertMoveOnly(Direction::Up)],
+                        'l' => return vec![Command::InsertMoveOnly(Direction::Right)],
+                        _ => {}
+                    }
+                }
+                if let Some(entity_type) = resolve_category_key(cat, c) {
+                    self.insert_category = None;
+                    return vec![Command::PlaceEntity(entity_type)];
+                }
             }
-            KeyCode::Char('a') if mods.is_empty() => {
-                vec![Command::PlaceEntity(EntityType::Assembler)]
-            }
-            KeyCode::Char('c') if mods.is_empty() => {
-                vec![Command::PlaceEntity(EntityType::Conveyor)]
-            }
-            KeyCode::Char('p') if mods.is_empty() => {
-                vec![Command::PlaceEntity(EntityType::Splitter)]
-            }
-            KeyCode::Char('e') if mods.is_empty() => {
-                vec![Command::PlaceEntity(EntityType::Merger)]
-            }
-            KeyCode::Char('w') if mods.is_empty() => {
-                vec![Command::PlaceEntity(EntityType::Wall)]
-            }
+            // Unrecognized key in category mode
+            return vec![];
+        }
 
-            // Move without placing (lowercase hjkl)
+        // --- Stage 1: no category → quick-place, category select, or movement ---
+        match key.code {
+            // hjkl movement
             KeyCode::Char('h') if mods.is_empty() => {
                 vec![Command::InsertMoveOnly(Direction::Left)]
             }
@@ -907,64 +1126,80 @@ impl VimParser {
             KeyCode::Char('l') if mods.is_empty() => {
                 vec![Command::InsertMoveOnly(Direction::Right)]
             }
-
-            // Change facing + move (Shift+HJKL)
-            KeyCode::Char('H') => {
-                vec![
-                    Command::SetInsertFacing(Facing::Left),
-                    Command::InsertMoveOnly(Direction::Left),
-                ]
+            // Quick-place shortcuts
+            KeyCode::Char('w') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Wall)]
             }
-            KeyCode::Char('J') => {
-                vec![
-                    Command::SetInsertFacing(Facing::Down),
-                    Command::InsertMoveOnly(Direction::Down),
-                ]
+            KeyCode::Char('1') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::BasicBelt)]
             }
-            KeyCode::Char('K') => {
-                vec![
-                    Command::SetInsertFacing(Facing::Up),
-                    Command::InsertMoveOnly(Direction::Up),
-                ]
+            KeyCode::Char('2') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::FastBelt)]
             }
-            KeyCode::Char('L') => {
-                vec![
-                    Command::SetInsertFacing(Facing::Right),
-                    Command::InsertMoveOnly(Direction::Right),
-                ]
+            KeyCode::Char('3') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::ExpressBelt)]
             }
-
-            // Arrow keys: change facing + move
-            KeyCode::Left => {
-                vec![
-                    Command::SetInsertFacing(Facing::Left),
-                    Command::InsertMoveOnly(Direction::Left),
-                ]
+            // Category selection
+            KeyCode::Char('c') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Conveyors);
+                vec![]
             }
-            KeyCode::Right => {
-                vec![
-                    Command::SetInsertFacing(Facing::Right),
-                    Command::InsertMoveOnly(Direction::Right),
-                ]
+            KeyCode::Char('p') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Pipes);
+                vec![]
             }
-            KeyCode::Up => {
-                vec![
-                    Command::SetInsertFacing(Facing::Up),
-                    Command::InsertMoveOnly(Direction::Up),
-                ]
+            KeyCode::Char('s') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::ProcessingT1);
+                vec![]
             }
-            KeyCode::Down => {
-                vec![
-                    Command::SetInsertFacing(Facing::Down),
-                    Command::InsertMoveOnly(Direction::Down),
-                ]
+            KeyCode::Char('a') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::ProcessingT2);
+                vec![]
             }
-
-            // Backspace: undo last placement
-            KeyCode::Backspace => {
-                vec![Command::InsertBackspace]
+            KeyCode::Char('q') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::ProcessingT4);
+                vec![]
             }
-
+            KeyCode::Char('e') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Energy);
+                vec![]
+            }
+            KeyCode::Char('g') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Storage);
+                vec![]
+            }
+            KeyCode::Char('o') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Logistics);
+                vec![]
+            }
+            KeyCode::Char('t') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Transport);
+                vec![]
+            }
+            KeyCode::Char('r') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Research);
+                vec![]
+            }
+            KeyCode::Char('x') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Waste);
+                vec![]
+            }
+            KeyCode::Char('d') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Utility);
+                vec![]
+            }
+            KeyCode::Char('n') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Circuit);
+                vec![]
+            }
+            KeyCode::Char('b') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::Balancers);
+                vec![]
+            }
+            KeyCode::Char('f') if mods.is_empty() => {
+                self.insert_category = Some(InsertCategoryKind::FluidExtras);
+                vec![]
+            }
             _ => vec![],
         }
     }
@@ -1201,6 +1436,19 @@ impl VimParser {
             "menu" => vec![Command::CmdMenu],
             "noh" | "nohlsearch" => vec![Command::CmdNoHighlight],
             "version" | "ver" => vec![Command::CmdVersion],
+            // Economy / expansion commands
+            "contracts" => vec![Command::CmdContracts],
+            "market" => vec![Command::CmdMarket],
+            "finance" => vec![Command::CmdFinance],
+            "loan" => vec![Command::CmdLoan],
+            "recipe" => {
+                vec![Command::CmdRecipe(arg.as_ref().and_then(|a| a.parse().ok()))]
+            }
+            "research" => vec![Command::CmdResearch],
+            "sell" => vec![Command::CmdSell],
+            "campaign" => vec![Command::CmdCampaign],
+            "prestige" => vec![Command::CmdPrestige],
+            "seed" => vec![Command::CmdSeed],
             _ => {
                 // Unknown command
                 vec![]
@@ -1214,6 +1462,8 @@ impl VimParser {
             "write", "quit", "wq", "edit", "speed", "pause", "resume", "step", "stats",
             "registers", "marks", "mapinfo", "help", "level", "restart", "freeplay", "menu",
             "nohlsearch", "version",
+            "contracts", "market", "finance", "loan", "recipe", "research", "sell",
+            "campaign", "prestige", "seed",
         ];
         let prefix = &self.command_line;
         if prefix.is_empty() {
@@ -1327,6 +1577,11 @@ impl VimParser {
         } else {
             None
         }
+    }
+
+    /// Get the current insert category name (for status bar display).
+    pub fn insert_category_name(&self) -> Option<&'static str> {
+        self.insert_category.map(|c| c.name())
     }
 
     /// Get a string describing the awaiting state for status bar display.

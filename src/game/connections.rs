@@ -85,7 +85,7 @@ impl ConnectionGraph {
         loop {
             let entity = map.entity_at(x, y)?;
             let kind = world.get::<&EntityKind>(entity).ok()?;
-            if kind.kind != EntityType::Conveyor {
+            if kind.kind != EntityType::BasicBelt {
                 return Some((x, y));
             }
             let facing = world.get::<&FacingComponent>(entity).ok()?.facing;
@@ -118,7 +118,7 @@ impl ConnectionGraph {
         loop {
             let entity = map.entity_at(x, y)?;
             let kind = world.get::<&EntityKind>(entity).ok()?;
-            if kind.kind != EntityType::Conveyor {
+            if kind.kind != EntityType::BasicBelt {
                 return Some((x, y));
             }
             let facing = world.get::<&FacingComponent>(entity).ok()?.facing;

@@ -73,7 +73,7 @@ fn ore_deposit_emit(world: &mut World, map: &mut Map, _config: &SimConfig) {
     }
 
     for (x, y) in emits {
-        map.set_resource(x, y, Resource::Ore);
+        map.set_resource(x, y, Resource::IronOre);
     }
 }
 
@@ -135,7 +135,7 @@ fn conveyor_movement(world: &mut World, map: &mut Map) {
     for (entity, (pos, kind, facing)) in
         world.query::<(&Position, &EntityKind, &FacingComponent)>().iter()
     {
-        if kind.kind != EntityType::Conveyor {
+        if kind.kind != EntityType::BasicBelt {
             continue;
         }
         conveyors.push((entity, pos.x, pos.y, facing.facing));
@@ -202,13 +202,13 @@ fn machine_consume(world: &mut World, map: &mut Map, config: &SimConfig) {
                     continue;
                 }
                 // Check own tile first (conveyor may have pushed here)
-                if let Some(Resource::Ore) = map.resource_at(pos.x, pos.y) {
-                    consumes.push((entity, pos.x, pos.y, Resource::Ore, false));
+                if let Some(Resource::IronOre) = map.resource_at(pos.x, pos.y) {
+                    consumes.push((entity, pos.x, pos.y, Resource::IronOre, false));
                 } else {
                     let input_side = facing.facing.opposite();
                     if let Some((nx, ny)) = map.neighbor(pos.x, pos.y, input_side) {
-                        if let Some(Resource::Ore) = map.resource_at(nx, ny) {
-                            consumes.push((entity, nx, ny, Resource::Ore, false));
+                        if let Some(Resource::IronOre) = map.resource_at(nx, ny) {
+                            consumes.push((entity, nx, ny, Resource::IronOre, false));
                         }
                     }
                 }
@@ -218,15 +218,15 @@ fn machine_consume(world: &mut World, map: &mut Map, config: &SimConfig) {
 
                 if proc.input_a.is_none() {
                     if let Some((nx, ny)) = map.neighbor(pos.x, pos.y, side_a) {
-                        if let Some(Resource::Ingot) = map.resource_at(nx, ny) {
-                            consumes.push((entity, nx, ny, Resource::Ingot, false));
+                        if let Some(Resource::IronIngot) = map.resource_at(nx, ny) {
+                            consumes.push((entity, nx, ny, Resource::IronIngot, false));
                         }
                     }
                 }
                 if proc.input_b.is_none() {
                     if let Some((nx, ny)) = map.neighbor(pos.x, pos.y, side_b) {
-                        if let Some(Resource::Ingot) = map.resource_at(nx, ny) {
-                            consumes.push((entity, nx, ny, Resource::Ingot, true));
+                        if let Some(Resource::IronIngot) = map.resource_at(nx, ny) {
+                            consumes.push((entity, nx, ny, Resource::IronIngot, true));
                         }
                     }
                 }
@@ -239,16 +239,16 @@ fn machine_consume(world: &mut World, map: &mut Map, config: &SimConfig) {
         map.remove_resource(nx, ny);
         if let Ok(mut proc) = world.get::<&mut Processing>(entity) {
             if is_input_b {
-                proc.input_b = Some(Resource::Ingot);
+                proc.input_b = Some(Resource::IronIngot);
             } else {
                 if let Ok(kind) = world.get::<&EntityKind>(entity) {
                     match kind.kind {
                         EntityType::Smelter => {
-                            proc.input_a = Some(Resource::Ore);
+                            proc.input_a = Some(Resource::IronOre);
                             proc.ticks_remaining = config.smelter_process_ticks;
                         }
                         EntityType::Assembler => {
-                            proc.input_a = Some(Resource::Ingot);
+                            proc.input_a = Some(Resource::IronIngot);
                             // Start processing only if both inputs are ready
                             if proc.input_b.is_some() {
                                 proc.ticks_remaining = config.assembler_process_ticks;
@@ -462,12 +462,12 @@ fn machine_process_tick(world: &mut World) {
             match kind.kind {
                 EntityType::Smelter => {
                     proc.input_a = None;
-                    proc.output = Some(Resource::Ingot);
+                    proc.output = Some(Resource::IronIngot);
                 }
                 EntityType::Assembler => {
                     proc.input_a = None;
                     proc.input_b = None;
-                    proc.output = Some(Resource::Widget);
+                    proc.output = Some(Resource::CircuitBoard);
                 }
                 _ => {}
             }

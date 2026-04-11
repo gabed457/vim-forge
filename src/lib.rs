@@ -11,3 +11,16 @@ pub mod tutorial;
 pub mod ui;
 pub mod vim;
 pub mod app;
+
+// New subsystems
+pub mod fluid;
+pub mod power;
+pub mod waste;
+pub mod transport;
+pub mod circuit;
+pub mod environment;
+pub mod economy;
+pub mod contracts;
+pub mod market;
+pub mod scaling;
+pub mod research;

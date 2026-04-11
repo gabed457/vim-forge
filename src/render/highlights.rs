@@ -17,9 +17,19 @@ pub enum HighlightType {
     ErrorFlash,
     /// Placement flash (successful entity placement).
     PlacementFlash,
+    /// Demolition flash.
+    DemolitionFlash,
+    /// Contract completion flash.
+    ContractFlash,
+    /// Connected chain highlight (blue glow).
+    ConnectionChain,
+    /// Bottleneck indicator (belt at 100% capacity).
+    Bottleneck,
+    /// Starved machine (waiting for input).
+    Starved,
 }
 
-/// Returns the ratatui Style for a given highlight type.
+/// Returns the ratatui Style for a given highlight type. ONLY uses Color::Rgb.
 pub fn highlight_style(ht: HighlightType) -> Style {
     match ht {
         HighlightType::Cursor => Style::default()
@@ -37,8 +47,22 @@ pub fn highlight_style(ht: HighlightType) -> Style {
             .fg(Color::Rgb(255, 60, 60))
             .bg(Color::Rgb(80, 0, 0)),
         HighlightType::PlacementFlash => Style::default()
-            .bg(Color::Rgb(60, 100, 60))
+            .fg(Color::Rgb(80, 220, 80))
+            .bg(Color::Rgb(30, 80, 30))
             .add_modifier(Modifier::BOLD),
+        HighlightType::DemolitionFlash => Style::default()
+            .fg(Color::Rgb(200, 140, 60))
+            .bg(Color::Rgb(60, 30, 10)),
+        HighlightType::ContractFlash => Style::default()
+            .fg(Color::Rgb(255, 215, 0))
+            .bg(Color::Rgb(60, 50, 10))
+            .add_modifier(Modifier::BOLD),
+        HighlightType::ConnectionChain => Style::default()
+            .bg(Color::Rgb(20, 30, 60)),
+        HighlightType::Bottleneck => Style::default()
+            .bg(Color::Rgb(60, 40, 10)),
+        HighlightType::Starved => Style::default()
+            .bg(Color::Rgb(50, 50, 10)),
     }
 }
 
@@ -46,11 +70,12 @@ pub fn highlight_style(ht: HighlightType) -> Style {
 /// game state information. Returns the highest-priority highlight type.
 ///
 /// Priority order (highest first):
-/// 1. Error flash / Placement flash (animations)
+/// 1. Error flash / Placement flash / Demolition flash / Contract flash (animations)
 /// 2. Cursor (normal or insert)
 /// 3. Search current match
 /// 4. Visual selection
 /// 5. Search other matches
+/// 6. Connection chain / bottleneck / starved (lowest)
 pub fn resolve_highlight(
     x: usize,
     y: usize,

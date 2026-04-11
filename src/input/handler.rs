@@ -10,6 +10,7 @@ use crate::commands::{Command, Operator};
 use crate::game::inventory::Inventory;
 use crate::game::undo::UndoStack;
 use crate::map::grid::Map;
+use crate::resources::EntityType;
 use crate::vim::dot::DotRepeat;
 use crate::vim::macros::MacroSystem;
 use crate::vim::marks::MarkStore;
@@ -41,6 +42,10 @@ pub struct InputState {
     pub status_message: String,
     pub viewport_top: usize,
     pub viewport_height: usize,
+    // Last find/til parameters for ; and , repeat
+    pub last_find_entity: Option<EntityType>,
+    pub last_find_forward: bool,
+    pub last_find_til: bool,
 }
 
 impl InputState {
@@ -60,6 +65,9 @@ impl InputState {
             status_message: String::new(),
             viewport_top: 0,
             viewport_height: 24,
+            last_find_entity: None,
+            last_find_forward: true,
+            last_find_til: false,
         }
     }
 
@@ -218,6 +226,10 @@ impl InputState {
                         .min(map.height.saturating_sub(1));
             }
             Command::FindEntity(entity_type, count, forward) => {
+                // Store for repeat-find (;/,)
+                self.last_find_entity = Some(entity_type);
+                self.last_find_forward = forward;
+                self.last_find_til = false;
                 for _ in 0..count {
                     let found = if forward {
                         map.find_entity_type_forward(
@@ -241,6 +253,10 @@ impl InputState {
                 }
             }
             Command::TilEntity(entity_type, count, forward) => {
+                // Store for repeat-find (;/,)
+                self.last_find_entity = Some(entity_type);
+                self.last_find_forward = forward;
+                self.last_find_til = true;
                 // Same as FindEntity but stop one tile before
                 for _ in 0..count {
                     let found = if forward {
@@ -285,14 +301,68 @@ impl InputState {
                 self.cursor_x = 0;
             }
             Command::MatchConnection => {
-                // Match connection: find the connected entity and jump to it.
-                // For now, this is a stub that could be extended with game-specific logic.
-                self.status_message = "Match connection (%)".to_string();
+                // Follow belt/pipe chain from cursor to endpoint
+                if let Some(entity) = map.entity_at(self.cursor_x, self.cursor_y) {
+                    if let Ok(kind) = world.get::<&crate::ecs::components::EntityKind>(entity) {
+                        if kind.kind.has_facing() {
+                            if let Ok(fc) = world.get::<&crate::ecs::components::FacingComponent>(entity) {
+                                let (dx, dy) = fc.facing.offset();
+                                let mut cx = self.cursor_x as isize + dx;
+                                let mut cy = self.cursor_y as isize + dy;
+                                // Walk forward along the chain
+                                while map.in_bounds_signed(cx, cy) {
+                                    if let Some(next_e) = map.entity_at(cx as usize, cy as usize) {
+                                        if let Ok(nf) = world.get::<&crate::ecs::components::FacingComponent>(next_e) {
+                                            let (ndx, ndy) = nf.facing.offset();
+                                            cx += ndx;
+                                            cy += ndy;
+                                            continue;
+                                        }
+                                    }
+                                    break;
+                                }
+                                // Step back to last valid position
+                                let fx = (cx as isize - dx) as usize;
+                                let fy = (cy as isize - dy) as usize;
+                                if (fx, fy) != (self.cursor_x, self.cursor_y) && map.in_bounds(fx, fy) {
+                                    self.cursor_x = fx;
+                                    self.cursor_y = fy;
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Command::RepeatFind(same_dir) => {
-                // Repeat last find/til -- handled by search state
-                let _ = same_dir;
-                self.status_message = "Repeat find".to_string();
+                if let Some(entity_type) = self.last_find_entity {
+                    let forward = if same_dir {
+                        self.last_find_forward
+                    } else {
+                        !self.last_find_forward
+                    };
+                    let found = if forward {
+                        map.find_entity_type_forward(world, self.cursor_x, self.cursor_y, entity_type)
+                    } else {
+                        map.find_entity_type_backward(world, self.cursor_x, self.cursor_y, entity_type)
+                    };
+                    if let Some((x, y)) = found {
+                        if self.last_find_til {
+                            // Stop one tile before
+                            if forward {
+                                if x > 0 && (x, y) != (self.cursor_x, self.cursor_y) {
+                                    self.cursor_x = x.saturating_sub(1);
+                                    self.cursor_y = y;
+                                }
+                            } else if x + 1 < map.width {
+                                self.cursor_x = x + 1;
+                                self.cursor_y = y;
+                            }
+                        } else {
+                            self.cursor_x = x;
+                            self.cursor_y = y;
+                        }
+                    }
+                }
             }
 
             // Operators with empty range (from parser; the range must be computed by
@@ -755,6 +825,76 @@ impl InputState {
             Command::CmdVersion => {
                 self.status_message = format!("VimForge v{}", env!("CARGO_PKG_VERSION"));
             }
+
+            // Text object operations
+            Command::TextObjectOp(ref op, inner, obj_char, reg) => {
+                let range = match obj_char {
+                    'w' => {
+                        if inner {
+                            crate::vim::text_objects::inner_word(map, self.cursor_x, self.cursor_y)
+                        } else {
+                            crate::vim::text_objects::around_word(map, self.cursor_x, self.cursor_y)
+                        }
+                    }
+                    'p' => {
+                        if inner {
+                            crate::vim::text_objects::inner_paragraph(map, self.cursor_x, self.cursor_y)
+                        } else {
+                            crate::vim::text_objects::around_paragraph(map, self.cursor_x, self.cursor_y)
+                        }
+                    }
+                    'b' | '(' | ')' => {
+                        if inner {
+                            crate::vim::text_objects::inner_block(map, world, self.cursor_x, self.cursor_y)
+                        } else {
+                            crate::vim::text_objects::around_block(map, world, self.cursor_x, self.cursor_y)
+                        }
+                    }
+                    _ => crate::commands::Range::empty(),
+                };
+                if !range.tiles.is_empty() {
+                    undo.push_snapshot(world, map, inventory);
+                    let bp = crate::vim::operators::apply_operator(op, world, map, inventory, &range);
+                    if let Some(bp) = bp {
+                        self.registers.set_blueprint(reg, bp, matches!(op, Operator::Yank));
+                    }
+                    if matches!(op, Operator::Change) {
+                        self.parser.mode = Mode::Insert;
+                    }
+                }
+            }
+
+            // Economy / expansion commands
+            Command::CmdContracts => {
+                self.status_message = "Contract board".to_string();
+            }
+            Command::CmdMarket => {
+                self.status_message = "Market prices".to_string();
+            }
+            Command::CmdFinance => {
+                self.status_message = "Financial overview".to_string();
+            }
+            Command::CmdLoan => {
+                self.status_message = "Loan management".to_string();
+            }
+            Command::CmdRecipe(num) => {
+                self.status_message = format!("Recipe: {:?}", num);
+            }
+            Command::CmdResearch => {
+                self.status_message = "Research tree".to_string();
+            }
+            Command::CmdSell => {
+                self.status_message = "Sell resources".to_string();
+            }
+            Command::CmdCampaign => {
+                self.status_message = "Campaign progress".to_string();
+            }
+            Command::CmdPrestige => {
+                self.status_message = "Prestige options".to_string();
+            }
+            Command::CmdSeed => {
+                self.status_message = "Map seed info".to_string();
+            }
         }
 
         // Clamp cursor to map bounds after every command
@@ -851,15 +991,22 @@ impl InputState {
     }
 
     /// Get a display string for the current mode.
-    pub fn mode_string(&self) -> &'static str {
+    pub fn mode_string(&self) -> String {
         match self.parser.mode {
-            Mode::Normal => "NORMAL",
-            Mode::Insert => "INSERT",
-            Mode::Visual => "VISUAL",
-            Mode::VisualLine => "V-LINE",
-            Mode::VisualBlock => "V-BLOCK",
-            Mode::Command => "COMMAND",
-            Mode::Search => "SEARCH",
+            Mode::Normal => "NORMAL".to_string(),
+            Mode::Insert => {
+                if let Some(cat_name) = self.parser.insert_category_name() {
+                    let arrow = self.parser.insert_facing.arrow_glyph();
+                    format!("INSERT [{cat_name}] [{arrow}]")
+                } else {
+                    "INSERT".to_string()
+                }
+            }
+            Mode::Visual => "VISUAL".to_string(),
+            Mode::VisualLine => "V-LINE".to_string(),
+            Mode::VisualBlock => "V-BLOCK".to_string(),
+            Mode::Command => "COMMAND".to_string(),
+            Mode::Search => "SEARCH".to_string(),
         }
     }
 }

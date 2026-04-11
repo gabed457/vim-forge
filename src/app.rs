@@ -1,11 +1,14 @@
 use hecs::World;
+use serde::{Deserialize, Serialize};
 
 use crate::game::inventory::Inventory;
 use crate::game::simulation::Simulation;
 use crate::game::undo::UndoStack;
 use crate::map::grid::Map;
 use crate::render::animations::AnimationManager;
+use crate::render::particles::ParticleSystem;
 use crate::render::splits::SplitManager;
+use crate::render::trails::TrailSystem;
 use crate::resources::Facing;
 use crate::vim::macros::MacroSystem;
 use crate::vim::marks::MarkStore;
@@ -32,9 +35,21 @@ pub enum PopupKind {
     Stats,
     Registers,
     Marks,
+    Contracts,
+    Market,
+    Finance,
+    Research,
 }
 
-/// Central application state. Will be filled in by the integration agent.
+/// Game mode: tutorial levels, campaign, or freeplay sandbox.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GameMode {
+    Tutorial,
+    Campaign,
+    Freeplay,
+}
+
+/// Central application state.
 pub struct AppState {
     // -- Core game data --
     pub world: World,
@@ -81,6 +96,40 @@ pub struct AppState {
     pub freeplay_unlocked: bool,
     pub has_save: bool,
 
+    // -- Economy --
+    pub economy: crate::economy::ledger::Economy,
+    pub loans: crate::economy::loans::LoanManager,
+
+    // -- Contracts --
+    pub contract_board: crate::contracts::board::ContractBoard,
+
+    // -- Market --
+    pub market: crate::market::prices::MarketState,
+
+    // -- Research --
+    pub research: crate::research::tree::ResearchState,
+
+    // -- Scaling --
+    pub scaling: crate::scaling::difficulty::ScalingState,
+    pub regulations: crate::scaling::regulations::Regulations,
+
+    // -- Pollution --
+    pub pollution: crate::waste::pollution::PollutionState,
+
+    // -- Particles & trails --
+    pub particles: ParticleSystem,
+    pub trails: TrailSystem,
+
+    // -- Day/night cycle --
+    pub day_tick: u32,
+
+    // -- Prestige --
+    pub prestige: crate::scaling::prestige::PrestigeState,
+
+    // -- Game mode --
+    pub game_mode: GameMode,
+    pub seed: u64,
+
     // -- Running state --
     pub should_quit: bool,
 }
@@ -124,6 +173,21 @@ impl AppState {
             current_level: None,
             freeplay_unlocked: false,
             has_save: false,
+
+            economy: crate::economy::ledger::Economy::new(crate::economy::ledger::Difficulty::Normal),
+            loans: crate::economy::loans::LoanManager::new(crate::economy::ledger::Difficulty::Normal),
+            contract_board: crate::contracts::board::ContractBoard::new(),
+            market: crate::market::prices::MarketState::new(),
+            research: crate::research::tree::ResearchState::new(),
+            scaling: crate::scaling::difficulty::ScalingState::new(),
+            regulations: crate::scaling::regulations::Regulations::new(),
+            pollution: crate::waste::pollution::PollutionState::new(),
+            particles: ParticleSystem::new(),
+            trails: TrailSystem::new(),
+            day_tick: 0,
+            prestige: crate::scaling::prestige::PrestigeState::new(),
+            game_mode: GameMode::Tutorial,
+            seed: 42,
 
             should_quit: false,
         }

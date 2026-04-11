@@ -29,7 +29,7 @@ fn test_ore_deposit_emits_on_interval() {
 
     // Tick 4: emission
     systems::tick(&mut world, &mut map, &config);
-    assert_eq!(map.resource_at(3, 2), Some(Resource::Ore));
+    assert_eq!(map.resource_at(3, 2), Some(Resource::IronOre));
 }
 
 #[test]
@@ -45,17 +45,17 @@ fn test_conveyor_moves_resource_per_tick() {
     }
 
     // Place ore on first conveyor
-    map.set_resource(2, 2, Resource::Ore);
+    map.set_resource(2, 2, Resource::IronOre);
 
     // Tick: ore should move from (2,2) to (3,2)
     systems::tick(&mut world, &mut map, &config);
     assert!(map.resource_at(2, 2).is_none());
-    assert_eq!(map.resource_at(3, 2), Some(Resource::Ore));
+    assert_eq!(map.resource_at(3, 2), Some(Resource::IronOre));
 
     // Another tick: (3,2) to (4,2)
     systems::tick(&mut world, &mut map, &config);
     assert!(map.resource_at(3, 2).is_none());
-    assert_eq!(map.resource_at(4, 2), Some(Resource::Ore));
+    assert_eq!(map.resource_at(4, 2), Some(Resource::IronOre));
 }
 
 #[test]
@@ -70,13 +70,13 @@ fn test_conveyor_blocks_when_destination_full() {
     map.set_entity(3, 2, c2);
 
     // Both conveyors have resources
-    map.set_resource(2, 2, Resource::Ore);
-    map.set_resource(3, 2, Resource::Ingot);
+    map.set_resource(2, 2, Resource::IronOre);
+    map.set_resource(3, 2, Resource::IronIngot);
 
     systems::tick(&mut world, &mut map, &config);
 
     // First conveyor's ore should stay because destination is occupied
-    assert_eq!(map.resource_at(2, 2), Some(Resource::Ore));
+    assert_eq!(map.resource_at(2, 2), Some(Resource::IronOre));
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn test_smelter_consumes_ore_and_produces_ingot() {
     map.set_entity(4, 2, c_out);
 
     // Place ore on input conveyor
-    map.set_resource(2, 2, Resource::Ore);
+    map.set_resource(2, 2, Resource::IronOre);
 
     // Tick 1: ore moves to smelter input position... but conveyor pushes to (3,2)
     // Actually the conveyor at (2,2) pushes to (3,2) which is the smelter.
@@ -105,7 +105,7 @@ fn test_smelter_consumes_ore_and_produces_ingot() {
     map.remove_resource(2, 2);
 
     // Place ore directly where the smelter will consume it - on the input conveyor tile
-    map.set_resource(2, 2, Resource::Ore);
+    map.set_resource(2, 2, Resource::IronOre);
 
     // Tick: conveyor pushes ore right, but smelter is at (3,2).
     // The smelter consumes from its input side (left = position 2,2).
@@ -124,8 +124,8 @@ fn test_smelter_consumes_ore_and_produces_ingot() {
     // After processing, ingot should be somewhere downstream or in smelter output
     // Check if the smelter produced an ingot
     let proc = world.get::<&Processing>(smelter).unwrap();
-    let has_ingot_in_system = proc.output == Some(Resource::Ingot)
-        || map.resource_at(4, 2) == Some(Resource::Ingot);
+    let has_ingot_in_system = proc.output == Some(Resource::IronIngot)
+        || map.resource_at(4, 2) == Some(Resource::IronIngot);
 
     assert!(
         has_ingot_in_system || map.resource_at(2, 2).is_none(),
@@ -146,14 +146,14 @@ fn test_output_bin_consumes_and_counts() {
     map.set_entity(5, 2, bin);
 
     // Place a widget on the conveyor
-    map.set_resource(4, 2, Resource::Widget);
+    map.set_resource(4, 2, Resource::CircuitBoard);
 
     systems::tick(&mut world, &mut map, &config);
 
     // Widget should be consumed by the output bin
     assert!(map.resource_at(4, 2).is_none());
     let counter = world.get::<&OutputCounter>(bin).unwrap();
-    assert_eq!(counter.widget_count, 1);
+    assert_eq!(counter.widget_count(), 1);
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn test_splitter_alternates() {
     map.set_entity(3, 6, c_down);
 
     // First resource
-    map.set_resource(2, 5, Resource::Ore);
+    map.set_resource(2, 5, Resource::IronOre);
     systems::tick(&mut world, &mut map, &config);
 
     // After tick, ore should be at one of the outputs
@@ -207,5 +207,5 @@ fn test_full_chain_ore_to_output() {
     }
 
     let counter = world.get::<&OutputCounter>(bin).unwrap();
-    assert!(counter.ore_count > 0, "Output bin should have received ore");
+    assert!(counter.ore_count() > 0, "Output bin should have received ore");
 }

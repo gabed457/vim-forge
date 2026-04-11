@@ -97,6 +97,21 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                 if let Some(ref mut tut) = tutorial {
                     level_completed = check_tutorial_completion(&app, tut);
                 }
+
+                // Day/night cycle
+                app.day_tick = (app.day_tick + 1) % 600;
+
+                // Particle & trail updates
+                app.particles.tick();
+                app.trails.tick();
+
+                // Economic cycle (every 60 ticks)
+                if app.simulation.tick_count % 60 == 0 {
+                    app.economy.advance_cycle();
+                    app.market.update(app.simulation.tick_count);
+                    app.contract_board.check_deadlines(app.simulation.tick_count);
+                    let _reward = app.contract_board.check_completions(app.simulation.tick_count);
+                }
             }
             // Load the next level if the current one was just completed
             if level_completed {
@@ -251,6 +266,18 @@ fn handle_key(
             }
             Command::CmdHelp(topic) => {
                 app.popup = Some(PopupKind::Help(topic.clone()));
+            }
+            Command::CmdContracts => {
+                app.popup = Some(PopupKind::Contracts);
+            }
+            Command::CmdMarket => {
+                app.popup = Some(PopupKind::Market);
+            }
+            Command::CmdFinance => {
+                app.popup = Some(PopupKind::Finance);
+            }
+            Command::CmdResearch => {
+                app.popup = Some(PopupKind::Research);
             }
             Command::CmdLevel(Some(n)) => {
                 start_level(app, input, tutorial, *n);
@@ -472,9 +499,9 @@ fn check_tutorial_completion(app: &AppState, tut: &mut TutorialState) -> bool {
         .query::<&vimforge::ecs::components::OutputCounter>()
         .iter()
     {
-        total_widgets += counter.widget_count;
-        total_ingots += counter.ingot_count;
-        total_ore += counter.ore_count;
+        total_widgets += counter.widget_count();
+        total_ingots += counter.ingot_count();
+        total_ore += counter.ore_count();
     }
 
     if tut.check_completion(total_ore, total_ingots, total_widgets, (0, 0)) {
@@ -522,7 +549,10 @@ fn build_save_data(
             ore_emit_counter: emitter.as_ref().map(|e| e.ticks_since_emit),
             output_counts: counter
                 .as_ref()
-                .map(|c| (c.ore_count, c.ingot_count, c.widget_count)),
+                .map(|c| (c.ore_count(), c.ingot_count(), c.widget_count())),
+            output_counts_ext: counter
+                .as_ref()
+                .map(|c| c.counts.clone()),
             splitter_state: splitter.as_ref().map(|s| s.next_output),
             merger_state: merger.as_ref().map(|s| s.priority),
             player_placed: player,
@@ -543,13 +573,13 @@ fn build_save_data(
     let mut total_ingots = 0u64;
     let mut total_ore = 0u64;
     for (_e, c) in app.world.query::<&OutputCounter>().iter() {
-        total_widgets += c.widget_count;
-        total_ingots += c.ingot_count;
-        total_ore += c.ore_count;
+        total_widgets += c.widget_count();
+        total_ingots += c.ingot_count();
+        total_ore += c.ore_count();
     }
 
     save::SaveData {
-        version: 1,
+        version: 2,
         map_width: app.map.width,
         map_height: app.map.height,
         entities,
@@ -569,6 +599,16 @@ fn build_save_data(
             levels_completed: t.levels_completed.clone(),
             commands_learned: Vec::new(),
         }),
+        economy_cash: app.economy.cash,
+        economy_difficulty: Some(app.economy.difficulty.name().to_string()),
+        scaling_level: app.scaling.level,
+        day_tick: app.day_tick,
+        research_completed: app.research.completed.iter().map(|t| format!("{:?}", t)).collect(),
+        game_mode: Some(match app.game_mode {
+            vimforge::app::GameMode::Tutorial => "Tutorial",
+            vimforge::app::GameMode::Campaign => "Campaign",
+            vimforge::app::GameMode::Freeplay => "Freeplay",
+        }.to_string()),
     }
 }
 
@@ -595,4 +635,14 @@ fn load_save_data(app: &mut AppState, data: &save::SaveData) {
     app.simulation.set_speed(data.simulation_speed);
     app.simulation.tick_count = data.tick_count;
     app.mode = Mode::Normal;
+
+    // Restore v2 fields (defaults used for v1 saves)
+    app.economy.cash = data.economy_cash;
+    app.scaling.level = data.scaling_level;
+    app.day_tick = data.day_tick;
+    app.game_mode = match data.game_mode.as_deref() {
+        Some("Campaign") => vimforge::app::GameMode::Campaign,
+        Some("Freeplay") => vimforge::app::GameMode::Freeplay,
+        _ => vimforge::app::GameMode::Tutorial,
+    };
 }

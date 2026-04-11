@@ -9,9 +9,9 @@ use crate::app::{AppState, Mode};
 /// Render the status bar at the bottom of the screen.
 ///
 /// Layout:
-/// - Left: mode indicator with color coding
+/// - Left: mode indicator with Rgb color coding
 /// - Center: pending command buffer
-/// - Right: cursor position [col,row] and optional recording indicator
+/// - Right: cursor position [col,row], recording indicator
 pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
     if area.height == 0 || area.width == 0 {
         return;
@@ -33,9 +33,9 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
     if !app.status_message.is_empty() {
         spans.push(Span::raw(" "));
         let msg_style = if app.status_error {
-            Style::default().fg(Color::Red)
+            Style::default().fg(Color::Rgb(220, 60, 60))
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().fg(Color::Rgb(140, 140, 140))
         };
         // Truncate message to fit
         let max_msg_len = (area.width as usize).saturating_sub(30);
@@ -61,7 +61,7 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
         spans.push(Span::styled(
             pending.clone(),
             Style::default()
-                .fg(Color::Yellow)
+                .fg(Color::Rgb(220, 200, 60))
                 .add_modifier(Modifier::BOLD),
         ));
     }
@@ -74,7 +74,7 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
         right_spans.push(Span::styled(
             format!("recording @{} ", reg),
             Style::default()
-                .fg(Color::Red)
+                .fg(Color::Rgb(220, 60, 60))
                 .add_modifier(Modifier::BOLD),
         ));
     }
@@ -82,7 +82,7 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
     // Cursor position
     right_spans.push(Span::styled(
         format!("[{},{}]", app.cursor_x, app.cursor_y),
-        Style::default().fg(Color::DarkGray),
+        Style::default().fg(Color::Rgb(90, 90, 90)),
     ));
 
     // Calculate right alignment padding
@@ -118,16 +118,16 @@ fn render_command_line(frame: &mut Frame, area: Rect, app: &AppState) {
         Span::styled(
             prefix,
             Style::default()
-                .fg(Color::White)
+                .fg(Color::Rgb(220, 220, 220))
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             app.command_buffer.clone(),
-            Style::default().fg(Color::White),
+            Style::default().fg(Color::Rgb(220, 220, 220)),
         ),
         Span::styled(
             "\u{2588}", // block cursor
-            Style::default().fg(Color::White),
+            Style::default().fg(Color::Rgb(220, 220, 220)),
         ),
     ]);
 
@@ -135,39 +135,41 @@ fn render_command_line(frame: &mut Frame, area: Rect, app: &AppState) {
     frame.render_widget(paragraph, area);
 }
 
-/// Get the display text and style for the current mode.
+/// Get the display text and style for the current mode. Uses ONLY Color::Rgb.
 fn mode_display(app: &AppState) -> (String, Style) {
     match &app.mode {
         Mode::Normal => (
             " NORMAL ".to_string(),
-            Style::default().fg(Color::White),
+            Style::default()
+                .fg(Color::Rgb(220, 220, 220))
+                .bg(Color::Rgb(30, 35, 45)),
         ),
         Mode::Insert => {
             let arrow = app.insert_facing.arrow_glyph();
             (
                 format!(" INSERT [{}] ", arrow),
                 Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Rgb(0, 80, 0)),
+                    .fg(Color::Rgb(180, 240, 180))
+                    .bg(Color::Rgb(20, 50, 20)),
             )
         }
         Mode::Visual => (
             " VISUAL ".to_string(),
             Style::default()
-                .fg(Color::White)
-                .bg(Color::Rgb(120, 80, 0)),
+                .fg(Color::Rgb(240, 200, 150))
+                .bg(Color::Rgb(50, 35, 15)),
         ),
         Mode::VisualLine => (
             " VISUAL LINE ".to_string(),
             Style::default()
-                .fg(Color::White)
-                .bg(Color::Rgb(120, 80, 0)),
+                .fg(Color::Rgb(240, 200, 150))
+                .bg(Color::Rgb(50, 35, 15)),
         ),
         Mode::VisualBlock => (
             " VISUAL BLOCK ".to_string(),
             Style::default()
-                .fg(Color::White)
-                .bg(Color::Rgb(120, 80, 0)),
+                .fg(Color::Rgb(240, 200, 150))
+                .bg(Color::Rgb(50, 35, 15)),
         ),
         Mode::Command | Mode::Search => (
             String::new(),
@@ -175,7 +177,7 @@ fn mode_display(app: &AppState) -> (String, Style) {
         ),
         Mode::Menu => (
             " MENU ".to_string(),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(Color::Rgb(90, 90, 90)),
         ),
     }
 }

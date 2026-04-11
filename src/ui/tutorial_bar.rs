@@ -210,9 +210,9 @@ fn total_output_counts(app: &AppState) -> (u64, u64, u64) {
     let mut ingot = 0u64;
     let mut widget = 0u64;
     for (_entity, counter) in app.world.query::<&OutputCounter>().iter() {
-        ore += counter.ore_count;
-        ingot += counter.ingot_count;
-        widget += counter.widget_count;
+        ore += counter.ore_count();
+        ingot += counter.ingot_count();
+        widget += counter.widget_count();
     }
     (ore, ingot, widget)
 }

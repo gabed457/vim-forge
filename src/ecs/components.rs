@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::resources::{EntityType, Facing, Resource};
@@ -60,28 +62,41 @@ impl OreEmitter {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutputCounter {
-    pub ore_count: u64,
-    pub ingot_count: u64,
-    pub widget_count: u64,
+    pub counts: HashMap<Resource, u64>,
 }
 
 impl OutputCounter {
     pub fn new() -> Self {
         OutputCounter {
-            ore_count: 0,
-            ingot_count: 0,
-            widget_count: 0,
+            counts: HashMap::new(),
         }
     }
 
     pub fn add(&mut self, resource: Resource) {
-        match resource {
-            Resource::Ore => self.ore_count += 1,
-            Resource::Ingot => self.ingot_count += 1,
-            Resource::Widget => self.widget_count += 1,
-        }
+        *self.counts.entry(resource).or_insert(0) += 1;
+    }
+
+    pub fn get(&self, resource: Resource) -> u64 {
+        self.counts.get(&resource).copied().unwrap_or(0)
+    }
+
+    pub fn total(&self) -> u64 {
+        self.counts.values().sum()
+    }
+
+    /// Backward-compat accessors used by sidebar/popup.
+    pub fn ore_count(&self) -> u64 {
+        self.get(Resource::IronOre)
+    }
+
+    pub fn ingot_count(&self) -> u64 {
+        self.get(Resource::IronIngot)
+    }
+
+    pub fn widget_count(&self) -> u64 {
+        self.get(Resource::CircuitBoard)
     }
 }
 
@@ -144,3 +159,16 @@ impl MergerState {
 /// Marker component for entities placed by the player (as opposed to level-placed).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerPlaced;
+
+/// Component for the anchor entity of a multi-tile building.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MultiTile {
+    pub width: usize,
+    pub height: usize,
+}
+
+/// Marker component for secondary tiles that belong to a multi-tile building.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PartOfBuilding {
+    pub anchor: hecs::Entity,
+}

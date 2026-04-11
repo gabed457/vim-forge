@@ -221,6 +221,9 @@ pub enum Command {
     SaveAndQuit,
     QuitNoSave,
 
+    // Text object operations (operator + inner/around + object char)
+    TextObjectOp(Operator, bool, char, Option<char>),
+
     // Command mode commands
     CmdSave(Option<String>),
     CmdQuit(bool),
@@ -241,4 +244,16 @@ pub enum Command {
     CmdMenu,
     CmdNoHighlight,
     CmdVersion,
+
+    // Economy / expansion commands
+    CmdContracts,
+    CmdMarket,
+    CmdFinance,
+    CmdLoan,
+    CmdRecipe(Option<u16>),
+    CmdResearch,
+    CmdSell,
+    CmdCampaign,
+    CmdPrestige,
+    CmdSeed,
 }

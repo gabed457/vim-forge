@@ -18,7 +18,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 3,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -35,7 +35,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 3,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -60,7 +60,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 5,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -76,7 +76,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 5,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -101,7 +101,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 14,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -118,7 +118,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 14,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -143,7 +143,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 22,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -151,7 +151,7 @@ pub fn config() -> LevelConfig {
     entities.push(LevelEntity {
         x: 9,
         y: 22,
-        entity_type: EntityType::Conveyor,
+        entity_type: EntityType::BasicBelt,
         facing: Facing::Up, // Wrong!
         player_placed: false,
     });
@@ -166,7 +166,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 22,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -191,7 +191,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 25,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
@@ -201,7 +201,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 25,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });

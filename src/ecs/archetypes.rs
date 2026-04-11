@@ -63,7 +63,7 @@ pub fn spawn_conveyor(
     let mut builder = hecs::EntityBuilder::new();
     builder.add(Position { x, y });
     builder.add(EntityKind {
-        kind: EntityType::Conveyor,
+        kind: EntityType::BasicBelt,
     });
     builder.add(FacingComponent { facing });
     if player_placed {
@@ -151,10 +151,87 @@ pub fn spawn_entity(
         EntityType::OreDeposit => spawn_ore_deposit(world, x, y, 4),
         EntityType::Smelter => spawn_smelter(world, x, y, facing, player_placed),
         EntityType::Assembler => spawn_assembler(world, x, y, facing, player_placed),
-        EntityType::Conveyor => spawn_conveyor(world, x, y, facing, player_placed),
+        EntityType::BasicBelt => spawn_conveyor(world, x, y, facing, player_placed),
         EntityType::Splitter => spawn_splitter(world, x, y, facing, player_placed),
         EntityType::Merger => spawn_merger(world, x, y, facing, player_placed),
         EntityType::OutputBin => spawn_output_bin(world, x, y),
         EntityType::Wall => spawn_wall(world, x, y, player_placed),
+        // All other entity types: spawn with basic components
+        _ => {
+            let mut builder = hecs::EntityBuilder::new();
+            builder.add(Position { x, y });
+            builder.add(EntityKind { kind: entity_type });
+            if entity_type.has_facing() {
+                builder.add(FacingComponent { facing });
+            }
+            if player_placed {
+                builder.add(PlayerPlaced);
+            }
+            // Extractors get an OreEmitter
+            if matches!(
+                entity_type,
+                EntityType::CopperDeposit
+                    | EntityType::CoalDeposit
+                    | EntityType::StoneQuarry
+                    | EntityType::OilWell
+                    | EntityType::WaterPump
+                    | EntityType::GasExtractor
+                    | EntityType::UraniumMine
+                    | EntityType::SandExtractor
+                    | EntityType::SulfurMine
+                    | EntityType::BauxiteMine
+                    | EntityType::LithiumExtractor
+                    | EntityType::RareEarthExtractor
+                    | EntityType::BiomassHarvester
+                    | EntityType::GeothermalTap
+            ) {
+                builder.add(OreEmitter::new(4));
+            }
+            // Processors get Processing component
+            if matches!(
+                entity_type,
+                EntityType::Kiln
+                    | EntityType::Press
+                    | EntityType::WireMill
+                    | EntityType::PlateMachine
+                    | EntityType::RubberVulcanizer
+                    | EntityType::PlasticMolder
+                    | EntityType::Electrolyzer
+                    | EntityType::Caster
+                    | EntityType::CokeFurnace
+                    | EntityType::Gasifier
+                    | EntityType::Boiler
+                    | EntityType::WaferCutter
+                    | EntityType::Mixer
+                    | EntityType::ChemicalPlant
+                    | EntityType::CircuitFabricator
+                    | EntityType::MotorAssembly
+                    | EntityType::CrushingMill
+                    | EntityType::AdvancedAssembler
+                    | EntityType::Refinery
+                    | EntityType::CrackingTower
+                    | EntityType::Cleanroom
+                    | EntityType::EnrichmentCascade
+                    | EntityType::CoolantProcessor
+                    | EntityType::PrecisionAssembler
+                    | EntityType::QuantumLab
+                    | EntityType::RocketAssembly
+                    | EntityType::Megassembler
+                    | EntityType::SingularityLab
+            ) {
+                builder.add(Processing::new());
+            }
+            // Storage entities get OutputCounter
+            if matches!(
+                entity_type,
+                EntityType::Warehouse
+                    | EntityType::SiloHopper
+                    | EntityType::CryoTank
+                    | EntityType::ContainmentVault
+            ) {
+                builder.add(OutputCounter::new());
+            }
+            world.spawn(builder.build())
+        }
     }
 }

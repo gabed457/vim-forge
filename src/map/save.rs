@@ -6,6 +6,7 @@ use crate::commands::Blueprint;
 use crate::ecs::components::*;
 use crate::game::inventory::Inventory;
 use crate::resources::{EntityType, Facing, Resource};
+use std::collections::HashMap as StdHashMap;
 
 #[derive(Serialize, Deserialize)]
 pub struct SaveData {
@@ -22,6 +23,20 @@ pub struct SaveData {
     pub tutorial_state: Option<TutorialSaveState>,
     #[serde(default)]
     pub inventory: Inventory,
+
+    // v2 fields — all default for backward compat with v1 saves
+    #[serde(default)]
+    pub economy_cash: i64,
+    #[serde(default)]
+    pub economy_difficulty: Option<String>,
+    #[serde(default)]
+    pub scaling_level: u32,
+    #[serde(default)]
+    pub day_tick: u32,
+    #[serde(default)]
+    pub research_completed: Vec<String>,
+    #[serde(default)]
+    pub game_mode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,6 +51,8 @@ pub struct SavedEntity {
     pub output: Option<Resource>,
     pub ore_emit_counter: Option<u32>,
     pub output_counts: Option<(u64, u64, u64)>,
+    #[serde(default)]
+    pub output_counts_ext: Option<StdHashMap<Resource, u64>>,
     pub splitter_state: Option<SplitterOutput>,
     pub merger_state: Option<MergerPriority>,
     pub player_placed: bool,

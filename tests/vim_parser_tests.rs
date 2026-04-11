@@ -123,19 +123,65 @@ fn test_insert_esc_returns_to_normal() {
 }
 
 #[test]
-fn test_insert_place_entity() {
+fn test_insert_quick_place() {
     let mut parser = VimParser::new();
     parser.handle_key_event(key('i'));
+
+    // Quick-place: w → Wall
+    let cmds = parser.handle_key_event(key('w'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::Wall))));
+
+    // Quick-place: 1 → BasicBelt
+    let cmds = parser.handle_key_event(key('1'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::BasicBelt))));
+}
+
+#[test]
+fn test_insert_category_place() {
+    let mut parser = VimParser::new();
+    parser.handle_key_event(key('i'));
+
+    // Category: s (ProcessingT1) then s (Smelter)
+    let cmds = parser.handle_key_event(key('s'));
+    assert!(cmds.is_empty()); // category selected, no placement yet
 
     let cmds = parser.handle_key_event(key('s'));
     assert!(cmds
         .iter()
         .any(|c| matches!(c, Command::PlaceEntity(EntityType::Smelter))));
 
+    // Category: c (Conveyors) then 1 (BasicBelt)
     let cmds = parser.handle_key_event(key('c'));
+    assert!(cmds.is_empty()); // category selected
+
+    let cmds = parser.handle_key_event(key('1'));
     assert!(cmds
         .iter()
-        .any(|c| matches!(c, Command::PlaceEntity(EntityType::Conveyor))));
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::BasicBelt))));
+}
+
+#[test]
+fn test_insert_category_esc_returns_to_stage1() {
+    let mut parser = VimParser::new();
+    parser.handle_key_event(key('i'));
+    assert_eq!(parser.mode, Mode::Insert);
+
+    // Enter a category
+    parser.handle_key_event(key('c'));
+
+    // Esc in stage 2 → back to stage 1 (still insert mode)
+    let cmds = parser.handle_key_event(key_esc());
+    assert_eq!(parser.mode, Mode::Insert);
+    assert!(cmds.is_empty()); // no ExitToNormal
+
+    // Esc in stage 1 → normal mode
+    let cmds = parser.handle_key_event(key_esc());
+    assert_eq!(parser.mode, Mode::Normal);
+    assert!(cmds.iter().any(|c| matches!(c, Command::ExitToNormal)));
 }
 
 #[test]

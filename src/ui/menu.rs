@@ -6,10 +6,66 @@ use ratatui::Frame;
 
 use crate::app::AppState;
 
-/// Render the main menu screen (centered box with title and options).
+/// ASCII art lines for "VIM".
+const VIM_ART: [&str; 5] = [
+    " __     __ ___  __  __ ",
+    " \\ \\   / /|_ _||  \\/  |",
+    "  \\ \\ / /  | | | |\\/| |",
+    "   \\ V /   | | | |  | |",
+    "    \\_/   |___||_|  |_|",
+];
+
+/// ASCII art lines for "FORGE".
+const FORGE_ART: [&str; 5] = [
+    " _____ ___  ____   ____ _____",
+    "|  ___/ _ \\|  _ \\ / ___| ____|",
+    "| |_ | | | | |_) | |  _|  _|  ",
+    "|  _|| |_| |  _ <| |_| | |___ ",
+    "|_|   \\___/|_| \\_\\\\____|_____|",
+];
+
+/// Gradient for VIM: cyan to purple.
+fn vim_gradient(col: usize) -> Color {
+    // Interpolate from (80, 200, 220) to (160, 80, 220) over 23 chars
+    let t = (col as f64 / 22.0).min(1.0);
+    let r = (80.0 + 80.0 * t) as u8;
+    let g = (200.0 - 120.0 * t) as u8;
+    let b = 220u8;
+    Color::Rgb(r, g, b)
+}
+
+/// Gradient for FORGE: orange to gold.
+fn forge_gradient(col: usize) -> Color {
+    // Interpolate from (220, 120, 40) to (255, 200, 60) over 30 chars
+    let t = (col as f64 / 29.0).min(1.0);
+    let r = (220.0 + 35.0 * t).min(255.0) as u8;
+    let g = (120.0 + 80.0 * t) as u8;
+    let b = (40.0 + 20.0 * t) as u8;
+    Color::Rgb(r, g, b)
+}
+
+/// Build a line of ASCII art with per-character gradient coloring.
+fn gradient_line<'a>(text: &str, gradient_fn: fn(usize) -> Color) -> Line<'a> {
+    let spans: Vec<Span> = text
+        .chars()
+        .enumerate()
+        .map(|(i, ch)| {
+            let color = gradient_fn(i);
+            Span::styled(
+                String::from(ch),
+                Style::default()
+                    .fg(color)
+                    .add_modifier(Modifier::BOLD),
+            )
+        })
+        .collect();
+    Line::from(spans)
+}
+
+/// Render the main menu screen (centered box with ASCII art title and options).
 pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
     // Clear the entire frame with dark background
-    let bg_block = Block::default().style(Style::default().bg(Color::Rgb(15, 15, 25)));
+    let bg_block = Block::default().style(Style::default().bg(Color::Rgb(10, 10, 18)));
     frame.render_widget(bg_block, frame_size);
 
     let menu_area = menu_area(frame_size);
@@ -19,8 +75,8 @@ pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(Color::Cyan))
-        .style(Style::default().bg(Color::Rgb(20, 20, 35)));
+        .border_style(Style::default().fg(Color::Rgb(80, 200, 220)))
+        .style(Style::default().bg(Color::Rgb(15, 15, 28)));
 
     let inner = block.inner(menu_area);
     frame.render_widget(block, menu_area);
@@ -31,19 +87,23 @@ pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // Title
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        center_text("VIM FORGE", inner.width as usize),
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-    )));
+
+    // ASCII art title - VIM
+    for art_line in &VIM_ART {
+        lines.push(center_gradient_line(art_line, vim_gradient, inner.width as usize));
+    }
+
+    // ASCII art title - FORGE
+    for art_line in &FORGE_ART {
+        lines.push(center_gradient_line(art_line, forge_gradient, inner.width as usize));
+    }
+
+    lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         center_text("A Vim-Grammar Factory Builder", inner.width as usize),
-        Style::default().fg(Color::DarkGray),
+        Style::default().fg(Color::Rgb(90, 90, 100)),
     )));
-    lines.push(Line::from(""));
     lines.push(Line::from(""));
 
     // Menu options
@@ -70,7 +130,7 @@ pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
     // Footer
     lines.push(Line::from(Span::styled(
         center_text("Press a number key to select", inner.width as usize),
-        Style::default().fg(Color::DarkGray),
+        Style::default().fg(Color::Rgb(70, 70, 80)),
     )));
 
     let paragraph = Paragraph::new(lines);
@@ -79,14 +139,38 @@ pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
 
 /// Compute the centered menu box area.
 fn menu_area(frame_size: Rect) -> Rect {
-    let menu_w = 40u16.min(frame_size.width.saturating_sub(4));
-    let menu_h = 18u16.min(frame_size.height.saturating_sub(2));
+    let menu_w = 50u16.min(frame_size.width.saturating_sub(4));
+    let menu_h = 28u16.min(frame_size.height.saturating_sub(2));
     let x = (frame_size.width.saturating_sub(menu_w)) / 2 + frame_size.x;
     let y = (frame_size.height.saturating_sub(menu_h)) / 2 + frame_size.y;
     Rect::new(x, y, menu_w, menu_h)
 }
 
-/// Create a menu option line with grayed-out support.
+/// Center a gradient line within a width.
+fn center_gradient_line<'a>(
+    text: &str,
+    gradient_fn: fn(usize) -> Color,
+    width: usize,
+) -> Line<'a> {
+    let text_len = text.len();
+    if text_len >= width {
+        return gradient_line(text, gradient_fn);
+    }
+    let pad = (width - text_len) / 2;
+    let mut spans = vec![Span::raw(" ".repeat(pad))];
+    for (i, ch) in text.chars().enumerate() {
+        let color = gradient_fn(i);
+        spans.push(Span::styled(
+            String::from(ch),
+            Style::default()
+                .fg(color)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    Line::from(spans)
+}
+
+/// Create a menu option line. Gold highlight for enabled, gray for locked.
 fn menu_option<'a>(key: &str, label: &str, enabled: bool, width: usize) -> Line<'a> {
     let text = format!("{}  {}", key, label);
     let suffix = if !enabled { " (locked)" } else { "" };
@@ -94,18 +178,16 @@ fn menu_option<'a>(key: &str, label: &str, enabled: bool, width: usize) -> Line<
     let centered = center_text(&full, width);
 
     if enabled {
-        Line::from(vec![
-            Span::styled(
-                centered,
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ])
+        Line::from(vec![Span::styled(
+            centered,
+            Style::default()
+                .fg(Color::Rgb(255, 200, 60))
+                .add_modifier(Modifier::BOLD),
+        )])
     } else {
         Line::from(vec![Span::styled(
             centered,
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(Color::Rgb(70, 70, 80)),
         )])
     }
 }

@@ -45,9 +45,7 @@ pub struct OreEmitterSnapshot {
 
 #[derive(Clone, Debug)]
 pub struct OutputCounterSnapshot {
-    pub ore_count: u64,
-    pub ingot_count: u64,
-    pub widget_count: u64,
+    pub counts: std::collections::HashMap<crate::resources::Resource, u64>,
 }
 
 pub struct UndoStack {
@@ -139,9 +137,7 @@ fn capture_snapshot(world: &World, map: &Map, inventory: &Inventory) -> MapSnaps
 
         let output_counter = world.get::<&OutputCounter>(entity).ok().map(|c| {
             OutputCounterSnapshot {
-                ore_count: c.ore_count,
-                ingot_count: c.ingot_count,
-                widget_count: c.widget_count,
+                counts: c.counts.clone(),
             }
         });
 
@@ -236,9 +232,7 @@ fn restore_snapshot(world: &mut World, map: &mut Map, inventory: &mut Inventory,
         // Restore output counter
         if let Some(oc) = &se.output_counter {
             if let Ok(mut counter) = world.get::<&mut OutputCounter>(entity) {
-                counter.ore_count = oc.ore_count;
-                counter.ingot_count = oc.ingot_count;
-                counter.widget_count = oc.widget_count;
+                counter.counts = oc.counts.clone();
             }
         }
 

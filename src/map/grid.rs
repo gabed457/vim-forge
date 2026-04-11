@@ -1,6 +1,7 @@
 use hecs::World;
 
 use crate::ecs::components::*;
+use crate::map::terrain::Terrain;
 use crate::resources::{EntityType, Facing, Resource};
 
 #[derive(Clone, Debug)]
@@ -35,6 +36,7 @@ pub struct Map {
     pub width: usize,
     pub height: usize,
     pub tiles: Vec<Vec<Tile>>,
+    pub terrain: Vec<Vec<Terrain>>,
 }
 
 impl Map {
@@ -42,10 +44,14 @@ impl Map {
         let tiles = (0..height)
             .map(|_| (0..width).map(|_| Tile::empty()).collect())
             .collect();
+        let terrain = (0..height)
+            .map(|_| (0..width).map(|_| Terrain::default()).collect())
+            .collect();
         Map {
             width,
             height,
             tiles,
+            terrain,
         }
     }
 
@@ -71,6 +77,22 @@ impl Map {
 
     pub fn resource_at(&self, x: usize, y: usize) -> Option<Resource> {
         self.get_tile(x, y).and_then(|t| t.resource)
+    }
+
+    pub fn terrain_at(&self, x: usize, y: usize) -> Terrain {
+        self.terrain
+            .get(y)
+            .and_then(|row| row.get(x))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn set_terrain(&mut self, x: usize, y: usize, t: Terrain) {
+        if let Some(row) = self.terrain.get_mut(y) {
+            if let Some(cell) = row.get_mut(x) {
+                *cell = t;
+            }
+        }
     }
 
     pub fn set_entity(&mut self, x: usize, y: usize, entity: hecs::Entity) {

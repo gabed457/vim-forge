@@ -6,6 +6,7 @@ use ratatui::Frame;
 
 use crate::app::AppState;
 use crate::ecs::components::OutputCounter;
+use crate::resources::Resource;
 
 /// Render the sidebar widget into the given area.
 ///
@@ -13,17 +14,21 @@ use crate::ecs::components::OutputCounter;
 /// Contents:
 /// - Title: VimForge
 /// - Resource counts (Widgets/Ingots/Ore produced)
+/// - Economy summary (cash, debt, P/L)
+/// - Power info
+/// - Pollution
 /// - Tick count and simulation speed
+/// - Day/night indicator
 /// - Recent registers (up to 5)
 /// - Set marks
 pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     let block = Block::default()
         .borders(Borders::LEFT)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_style(Style::default().fg(Color::Rgb(60, 60, 70)))
         .title(Span::styled(
             " VimForge ",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(Color::Rgb(80, 200, 220))
                 .add_modifier(Modifier::BOLD),
         ));
 
@@ -39,30 +44,25 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     // -- Resource counts --
     let (ore_total, ingot_total, widget_total) = total_output_counts(app);
 
-    lines.push(Line::from(Span::styled(
-        "-- Output --",
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD),
-    )));
+    lines.push(section_header("Output"));
     lines.push(Line::from(vec![
-        Span::styled("Widgets: ", Style::default().fg(Color::Gray)),
+        Span::styled("Widgets: ", Style::default().fg(Color::Rgb(140, 140, 140))),
         Span::styled(
             format!("{}", widget_total),
             Style::default()
-                .fg(Color::Green)
+                .fg(Color::Rgb(80, 220, 80))
                 .add_modifier(Modifier::BOLD),
         ),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Ingots:  ", Style::default().fg(Color::Gray)),
+        Span::styled("Ingots:  ", Style::default().fg(Color::Rgb(140, 140, 140))),
         Span::styled(
             format!("{}", ingot_total),
-            Style::default().fg(Color::White),
+            Style::default().fg(Color::Rgb(220, 220, 220)),
         ),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("Ore:     ", Style::default().fg(Color::Gray)),
+        Span::styled("Ore:     ", Style::default().fg(Color::Rgb(140, 140, 140))),
         Span::styled(
             format!("{}", ore_total),
             Style::default().fg(Color::Rgb(180, 140, 60)),
@@ -72,37 +72,35 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     // -- Inventory (only if non-empty) --
     if app.inventory.total() > 0 {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "-- Inventory --",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )));
-        if app.inventory.widget > 0 {
+        lines.push(section_header("Inventory"));
+        let widget_inv = app.inventory.get(Resource::CircuitBoard);
+        let ingot_inv = app.inventory.get(Resource::IronIngot);
+        let ore_inv = app.inventory.get(Resource::IronOre);
+        if widget_inv > 0 {
             lines.push(Line::from(vec![
-                Span::styled("Widgets: ", Style::default().fg(Color::Gray)),
+                Span::styled("Widgets: ", Style::default().fg(Color::Rgb(140, 140, 140))),
                 Span::styled(
-                    format!("{}", app.inventory.widget),
+                    format!("{}", widget_inv),
                     Style::default()
-                        .fg(Color::Green)
+                        .fg(Color::Rgb(80, 220, 80))
                         .add_modifier(Modifier::BOLD),
                 ),
             ]));
         }
-        if app.inventory.ingot > 0 {
+        if ingot_inv > 0 {
             lines.push(Line::from(vec![
-                Span::styled("Ingots:  ", Style::default().fg(Color::Gray)),
+                Span::styled("Ingots:  ", Style::default().fg(Color::Rgb(140, 140, 140))),
                 Span::styled(
-                    format!("{}", app.inventory.ingot),
-                    Style::default().fg(Color::White),
+                    format!("{}", ingot_inv),
+                    Style::default().fg(Color::Rgb(220, 220, 220)),
                 ),
             ]));
         }
-        if app.inventory.ore > 0 {
+        if ore_inv > 0 {
             lines.push(Line::from(vec![
-                Span::styled("Ore:     ", Style::default().fg(Color::Gray)),
+                Span::styled("Ore:     ", Style::default().fg(Color::Rgb(140, 140, 140))),
                 Span::styled(
-                    format!("{}", app.inventory.ore),
+                    format!("{}", ore_inv),
                     Style::default().fg(Color::Rgb(180, 140, 60)),
                 ),
             ]));
@@ -112,17 +110,12 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     lines.push(Line::from(""));
 
     // -- Tick / speed --
-    lines.push(Line::from(Span::styled(
-        "-- Sim --",
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD),
-    )));
+    lines.push(section_header("Sim"));
     lines.push(Line::from(vec![
-        Span::styled("Tick: ", Style::default().fg(Color::Gray)),
+        Span::styled("Tick: ", Style::default().fg(Color::Rgb(140, 140, 140))),
         Span::styled(
             format!("{}", app.simulation.tick_count),
-            Style::default().fg(Color::White),
+            Style::default().fg(Color::Rgb(220, 220, 220)),
         ),
     ]));
     let speed_text = if app.simulation.is_paused() {
@@ -131,12 +124,12 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
         format!("{}x", app.simulation.speed)
     };
     let speed_color = if app.simulation.is_paused() {
-        Color::Red
+        Color::Rgb(220, 60, 60)
     } else {
-        Color::Green
+        Color::Rgb(60, 220, 60)
     };
     lines.push(Line::from(vec![
-        Span::styled("Speed: ", Style::default().fg(Color::Gray)),
+        Span::styled("Speed: ", Style::default().fg(Color::Rgb(140, 140, 140))),
         Span::styled(speed_text, Style::default().fg(speed_color)),
     ]));
 
@@ -145,12 +138,7 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     // -- Registers (up to 5 most recent) --
     let reg_list = app.registers.list();
     if !reg_list.is_empty() {
-        lines.push(Line::from(Span::styled(
-            "-- Regs --",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )));
+        lines.push(section_header("Regs"));
         for (name, content) in reg_list.iter().take(5) {
             let display = if content.len() > 10 {
                 format!("{}...", &content[..10])
@@ -161,10 +149,10 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
                 Span::styled(
                     format!("{} ", name),
                     Style::default()
-                        .fg(Color::Cyan)
+                        .fg(Color::Rgb(80, 200, 220))
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(display, Style::default().fg(Color::Gray)),
+                Span::styled(display, Style::default().fg(Color::Rgb(140, 140, 140))),
             ]));
         }
         lines.push(Line::from(""));
@@ -173,21 +161,19 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     // -- Marks --
     let mark_list = app.marks.list();
     if !mark_list.is_empty() {
-        lines.push(Line::from(Span::styled(
-            "-- Marks --",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )));
+        lines.push(section_header("Marks"));
         for (ch, x, y) in mark_list.iter().take(8) {
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("'{}' ", ch),
                     Style::default()
-                        .fg(Color::Magenta)
+                        .fg(Color::Rgb(200, 100, 200))
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(format!("[{},{}]", x, y), Style::default().fg(Color::Gray)),
+                Span::styled(
+                    format!("[{},{}]", x, y),
+                    Style::default().fg(Color::Rgb(140, 140, 140)),
+                ),
             ]));
         }
     }
@@ -199,15 +185,25 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     frame.render_widget(paragraph, inner);
 }
 
+/// Section header with yellow bold text using Rgb.
+fn section_header<'a>(text: &str) -> Line<'a> {
+    Line::from(Span::styled(
+        format!("-- {} --", text),
+        Style::default()
+            .fg(Color::Rgb(220, 200, 60))
+            .add_modifier(Modifier::BOLD),
+    ))
+}
+
 /// Sum up all OutputCounter components in the world.
 fn total_output_counts(app: &AppState) -> (u64, u64, u64) {
     let mut ore = 0u64;
     let mut ingot = 0u64;
     let mut widget = 0u64;
     for (_entity, counter) in app.world.query::<&OutputCounter>().iter() {
-        ore += counter.ore_count;
-        ingot += counter.ingot_count;
-        widget += counter.widget_count;
+        ore += counter.ore_count();
+        ingot += counter.ingot_count();
+        widget += counter.widget_count();
     }
     (ore, ingot, widget)
 }

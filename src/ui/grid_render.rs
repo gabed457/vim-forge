@@ -1,5 +1,5 @@
 use ratatui::layout::Rect;
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::Frame;
 
 use crate::app::{AppState, Mode};
@@ -12,10 +12,11 @@ use crate::resources::Facing;
 /// Render the game grid into the given area.
 ///
 /// Each tile occupies 2 character cells:
-/// - Cell 0: entity glyph (or empty tile dot)
+/// - Cell 0: entity glyph (or terrain/empty tile dot)
 /// - Cell 1: resource glyph, processing indicator, or space
 ///
 /// Highlights (cursor, selection, search, flash) are applied on top.
+/// Terrain glyphs shown for empty tiles with terrain data.
 pub fn render_grid(frame: &mut Frame, area: Rect, app: &AppState, viewport: &Viewport) {
     let buf = frame.buffer_mut();
 
@@ -86,7 +87,10 @@ pub fn render_grid(frame: &mut Frame, area: Rect, app: &AppState, viewport: &Vie
 
                     (g, s, proc_info)
                 } else {
-                    (glyphs::empty_tile_glyph(), glyphs::empty_tile_style(), None)
+                    // Empty tile — show terrain if available, otherwise default dot
+                    let terrain = app.map.terrain_at(map_x, map_y);
+                    let (g, s) = terrain_glyph_style(terrain);
+                    (g, s, None)
                 };
 
             // Determine second cell content: processing indicator > resource > space
@@ -132,6 +136,20 @@ pub fn render_grid(frame: &mut Frame, area: Rect, app: &AppState, viewport: &Vie
             buf_cell1.set_style(final_style1);
         }
     }
+}
+
+/// Get the glyph and style for a terrain type. Uses ONLY Color::Rgb.
+fn terrain_glyph_style(terrain: crate::map::terrain::Terrain) -> (char, Style) {
+    let glyph = terrain.glyph();
+    let (fr, fg, fb) = terrain.fg_color();
+    let mut style = Style::default().fg(Color::Rgb(fr, fg, fb));
+
+    // Apply terrain background color if defined
+    if let Some((br, bg_c, bb)) = terrain.bg_color() {
+        style = style.bg(Color::Rgb(br, bg_c, bb));
+    }
+
+    (glyph, style)
 }
 
 /// Merge a base style with a highlight style. The highlight's background takes priority;

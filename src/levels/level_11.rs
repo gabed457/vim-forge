@@ -20,7 +20,7 @@ pub fn config() -> LevelConfig {
         entities.push(LevelEntity {
             x,
             y: 7,
-            entity_type: EntityType::Conveyor,
+            entity_type: EntityType::BasicBelt,
             facing: Facing::Up,
             player_placed: false,
         });

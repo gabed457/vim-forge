@@ -1,12 +1,21 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::resources::Resource;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Inventory {
-    pub ore: u64,
-    pub ingot: u64,
-    pub widget: u64,
+    #[serde(default)]
+    pub counts: HashMap<Resource, u64>,
+}
+
+impl Default for Inventory {
+    fn default() -> Self {
+        Inventory {
+            counts: HashMap::new(),
+        }
+    }
 }
 
 impl Inventory {
@@ -15,14 +24,14 @@ impl Inventory {
     }
 
     pub fn add(&mut self, resource: Resource) {
-        match resource {
-            Resource::Ore => self.ore += 1,
-            Resource::Ingot => self.ingot += 1,
-            Resource::Widget => self.widget += 1,
-        }
+        *self.counts.entry(resource).or_insert(0) += 1;
+    }
+
+    pub fn get(&self, resource: Resource) -> u64 {
+        self.counts.get(&resource).copied().unwrap_or(0)
     }
 
     pub fn total(&self) -> u64 {
-        self.ore + self.ingot + self.widget
+        self.counts.values().sum()
     }
 }

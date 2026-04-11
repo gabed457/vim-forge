@@ -5,8 +5,9 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::app::AppState;
-use crate::ecs::components::OutputCounter;
-use crate::resources::Resource;
+use crate::ecs::components::{EntityKind, FacingComponent, OutputCounter, PartOfBuilding};
+use crate::render::glyphs;
+use crate::resources::{Facing, Resource};
 
 /// Render the sidebar widget into the given area.
 ///
@@ -157,6 +158,48 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
         }
         lines.push(Line::from(""));
     }
+
+    // -- Building info (when cursor is on a building) --
+    if let Some(ent) = app.map.entity_at(app.cursor_x, app.cursor_y) {
+        // Resolve anchor for multi-tile buildings
+        let anchor = if let Ok(pob) = app.world.get::<&PartOfBuilding>(ent) {
+            pob.anchor
+        } else {
+            ent
+        };
+
+        if let Ok(ek) = app.world.get::<&EntityKind>(anchor) {
+            let entity_type = ek.kind;
+            let facing = app
+                .world
+                .get::<&FacingComponent>(anchor)
+                .map(|f| f.facing)
+                .unwrap_or(Facing::Right);
+            let (fr, fg, fb) = glyphs::building_fg(entity_type);
+            let fg_style = Style::default()
+                .fg(Color::Rgb(fr, fg, fb))
+                .add_modifier(Modifier::BOLD);
+
+            lines.push(Line::from(""));
+            lines.push(section_header("Building"));
+            lines.push(Line::from(Span::styled(
+                entity_type.name(),
+                fg_style,
+            )));
+
+            // Show ASCII art preview (static, all tile rows)
+            let art = glyphs::building_art(entity_type);
+            for idx in 0..art.rows.len() {
+                let [c0, c1] = glyphs::entity_art(entity_type, facing, idx);
+                lines.push(Line::from(Span::styled(
+                    format!(" {}{}", c0, c1),
+                    fg_style,
+                )));
+            }
+        }
+    }
+
+    lines.push(Line::from(""));
 
     // -- Marks --
     let mark_list = app.marks.list();

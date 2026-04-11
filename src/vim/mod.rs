@@ -1,0 +1,9 @@
+pub mod dot;
+pub mod macros;
+pub mod marks;
+pub mod motions;
+pub mod operators;
+pub mod parser;
+pub mod registers;
+pub mod search;
+pub mod text_objects;

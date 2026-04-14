@@ -47,7 +47,7 @@ impl Terrain {
 
     pub fn fg_color(&self) -> (u8, u8, u8) {
         match self {
-            Terrain::Ground => (60, 60, 60),
+            Terrain::Ground => (35, 42, 52),
             Terrain::Water => (60, 120, 200),
             Terrain::DeepWater => (30, 60, 150),
             Terrain::Forest => (30, 120, 30),
@@ -62,9 +62,16 @@ impl Terrain {
 
     pub fn bg_color(&self) -> Option<(u8, u8, u8)> {
         match self {
+            Terrain::Ground => Some((18, 22, 28)),
+            Terrain::Desert => Some((22, 18, 10)),
+            Terrain::Ice => Some((14, 16, 22)),
+            Terrain::Forest => Some((10, 18, 10)),
+            Terrain::Swamp => Some((14, 16, 10)),
+            Terrain::Water => Some((8, 14, 24)),
+            Terrain::DeepWater => Some((4, 8, 18)),
+            Terrain::Mountain => Some((16, 16, 18)),
             Terrain::Lava => Some((80, 20, 0)),
             Terrain::RadioactiveZone => Some((10, 30, 10)),
-            _ => None,
         }
     }
 }

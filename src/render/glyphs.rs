@@ -18,369 +18,585 @@ pub enum MachineState {
 // ---------------------------------------------------------------------------
 
 /// ASCII art definition for a building.
-/// Each row corresponds to one tile of the building (top-to-bottom when facing Right).
+/// Tiles are stored in row-major order: `tiles[row * width + col]`.
 /// Each tile has exactly 2 terminal columns: [col0, col1].
 pub struct BuildingArt {
-    pub rows: &'static [[char; 2]],
+    pub width: usize,
+    pub height: usize,
+    pub tiles: &'static [[char; 2]],
+}
+
+impl BuildingArt {
+    /// Look up the art for a specific (row, col) within this building.
+    /// Returns a default dot pair if out of bounds.
+    pub fn tile_at(&self, row: usize, col: usize) -> [char; 2] {
+        if row < self.height && col < self.width {
+            self.tiles[row * self.width + col]
+        } else {
+            ['\u{00B7}', '\u{00B7}']
+        }
+    }
 }
 
 /// Returns the ASCII art definition for an entity type (in Right-facing orientation).
 pub fn building_art(entity_type: EntityType) -> BuildingArt {
     use EntityType::*;
     match entity_type {
-        // ── Extractors (1x1) ────────────────────────────────────────────
-        OreDeposit | CopperDeposit | CoalDeposit | StoneQuarry
-        | UraniumMine | SandExtractor | SulfurMine | BauxiteMine
-        | LithiumExtractor | RareEarthExtractor => BuildingArt { rows: &[
-            ['\u{229E}', '\u{00B7}'],  // ⊞·
+        // ══════════════════════════════════════════════════════════════════
+        // Extractors (3×2) — output port on right edge, row 1
+        // ══════════════════════════════════════════════════════════════════
+        OreDeposit => BuildingArt { width: 3, height: 2, tiles: &[
+            // Row 0: ╔═ ══ ═╗
+            ['╔','═'], ['═','═'], ['═','╗'],
+            // Row 1: ║⊞ ·· ·▸
+            ['║','⊞'], ['·','·'], ['·','▸'],
         ]},
-        OilWell => BuildingArt { rows: &[
-            ['\u{22BC}', '~'],  // ⊼~
+        CopperDeposit => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','⊞'], ['·','☼'], ['·','▸'],
         ]},
-        WaterPump => BuildingArt { rows: &[
-            ['\u{2248}', '\u{2191}'],  // ≈↑
+        CoalDeposit => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','▓'], ['▓','·'], ['·','▸'],
         ]},
-        GasExtractor => BuildingArt { rows: &[
-            ['\u{25CE}', '\u{00B0}'],  // ◎°
+        StoneQuarry => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','░'], ['▒','·'], ['·','▸'],
         ]},
-        BiomassHarvester => BuildingArt { rows: &[
-            ['\u{2320}', '\u{00A4}'],  // ⌠¤
+        UraniumMine => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','☢'], ['·','·'], ['·','▸'],
         ]},
-        GeothermalTap => BuildingArt { rows: &[
-            ['\u{25BD}', '\u{25B3}'],  // ▽△
+        SandExtractor => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','░'], ['·','·'], ['·','▸'],
         ]},
-
-        // ── 1x1 Processors ─────────────────────────────────────────────
-        Smelter => BuildingArt { rows: &[
-            ['\u{25EE}', '\u{25A3}'],  // ◮▣
+        SulfurMine => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','§'], ['·','·'], ['·','▸'],
         ]},
-        Kiln => BuildingArt { rows: &[
-            ['\u{2293}', '\u{25A5}'],  // ⊓▥
+        BauxiteMine => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','▤'], ['·','·'], ['·','▸'],
         ]},
-        Press => BuildingArt { rows: &[
-            ['\u{2293}', '\u{2294}'],  // ⊓⊔
+        LithiumExtractor => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','⊕'], ['·','·'], ['·','▸'],
         ]},
-        WireMill => BuildingArt { rows: &[
-            ['\u{229E}', '\u{223F}'],  // ⊞∿
+        RareEarthExtractor => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','◇'], ['·','·'], ['·','▸'],
         ]},
-        PlateMachine => BuildingArt { rows: &[
-            ['\u{229E}', '\u{25A4}'],  // ⊞▤
+        OilWell => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','⊼'], ['~','·'], ['·','▸'],
         ]},
-        RubberVulcanizer => BuildingArt { rows: &[
-            ['\u{2593}', '\u{25A4}'],  // ▓▤
+        WaterPump => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','≈'], ['↑','·'], ['·','▸'],
         ]},
-        PlasticMolder => BuildingArt { rows: &[
-            ['\u{25FB}', '\u{25A4}'],  // ◻▤
+        GasExtractor => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','◎'], ['°','·'], ['·','▸'],
         ]},
-        Electrolyzer => BuildingArt { rows: &[
-            ['\u{2295}', '\u{223F}'],  // ⊕∿
+        BiomassHarvester => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','⌠'], ['¤','·'], ['·','▸'],
         ]},
-        Caster => BuildingArt { rows: &[
-            ['\u{25EE}', '\u{25A4}'],  // ◮▤
-        ]},
-        CokeFurnace => BuildingArt { rows: &[
-            ['\u{2302}', '\u{2593}'],  // ⌂▓
-        ]},
-        Gasifier => BuildingArt { rows: &[
-            ['\u{2593}', '\u{2591}'],  // ▓░
-        ]},
-        Boiler => BuildingArt { rows: &[
-            ['\u{25EE}', '\u{2248}'],  // ◮≈
-        ]},
-        WaferCutter => BuildingArt { rows: &[
-            ['\u{2297}', '\u{25A4}'],  // ⊗▤
-        ]},
-
-        // ── 1x3 Processors ─────────────────────────────────────────────
-        Assembler => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{229B}', '\u{25B8}'],  // ⊛▸
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
-        ]},
-        Mixer => BuildingArt { rows: &[
-            ['\u{256D}', '\u{25E6}'],  // ╭◦
-            ['\u{25CE}', '\u{25B8}'],  // ◎▸
-            ['\u{2570}', '\u{25E6}'],  // ╰◦
-        ]},
-        ChemicalPlant => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25CE}'],  // ╔◎
-            ['\u{2560}', '\u{25B8}'],  // ╠▸
-            ['\u{255A}', '\u{25CE}'],  // ╚◎
-        ]},
-        CircuitFabricator => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{229E}', '\u{25B8}'],  // ⊞▸
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
-        ]},
-        MotorAssembly => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{2299}', '\u{25B8}'],  // ⊙▸
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
-        ]},
-        CrushingMill => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{2297}', '\u{25B8}'],  // ⊗▸
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
+        GeothermalTap => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['║','▽'], ['△','·'], ['·','▸'],
         ]},
 
-        // ── 1x5 Processors ─────────────────────────────────────────────
-        AdvancedAssembler => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{229B}', '\u{25B8}'],  // ⊛▸
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
+        // ══════════════════════════════════════════════════════════════════
+        // 1-input processors (3×3) — input left-center, output right-center,
+        // waste bottom-center
+        // ══════════════════════════════════════════════════════════════════
+        Smelter => BuildingArt { width: 3, height: 3, tiles: &[
+            // Row 0: ╔═ ▓▓ ═╗
+            ['╔','═'], ['▓','▓'], ['═','╗'],
+            // Row 1: ◂▓ ▓▓ ▓▸   (input left, fire interior, output right)
+            ['◂','▓'], ['▓','▓'], ['▓','▸'],
+            // Row 2: ╚═ ═▾ ═╝   (waste port bottom center)
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        Refinery => BuildingArt { rows: &[
-            ['\u{250C}', '\u{2565}'],  // ┌╥
-            ['\u{2502}', '\u{2551}'],  // │║
-            ['\u{25C2}', '\u{256C}'],  // ◂╬
-            ['\u{2502}', '\u{2551}'],  // │║
-            ['\u{2514}', '\u{2568}'],  // └╨
+        Kiln => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▒','▒'], ['═','╗'],
+            ['◂','▒'], ['⊓','▥'], ['▒','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        CrackingTower => BuildingArt { rows: &[
-            ['\u{2503}', '\u{25C2}'],  // ┃◂
-            ['\u{2503}', '\u{00B7}'],  // ┃·
-            ['\u{254B}', '\u{25B8}'],  // ╋▸
-            ['\u{2503}', '\u{00B7}'],  // ┃·
-            ['\u{2503}', '\u{25C2}'],  // ┃◂
+        Press => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['⊓','⊓'], ['═','╗'],
+            ['◂','·'], ['⊓','⊔'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        Cleanroom => BuildingArt { rows: &[
-            ['\u{2552}', '\u{25C2}'],  // ╒◂
-            ['\u{2502}', '\u{00B7}'],  // │·
-            ['\u{25C7}', '\u{25B8}'],  // ◇▸
-            ['\u{2502}', '\u{00B7}'],  // │·
-            ['\u{2558}', '\u{25C2}'],  // ╘◂
+        WireMill => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['∿','∿'], ['═','╗'],
+            ['◂','·'], ['⊞','∿'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        EnrichmentCascade => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{25C9}', '\u{25B8}'],  // ◉▸
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
+        PlateMachine => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▤','▤'], ['═','╗'],
+            ['◂','·'], ['⊞','▤'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        CoolantProcessor => BuildingArt { rows: &[
-            ['\u{25C7}', '\u{25C2}'],  // ◇◂
-            ['\u{2502}', '\u{00B7}'],  // │·
-            ['\u{25C8}', '\u{25B8}'],  // ◈▸
-            ['\u{2502}', '\u{00B7}'],  // │·
-            ['\u{2514}', '\u{25C2}'],  // └◂
+        RubberVulcanizer => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▓','▓'], ['═','╗'],
+            ['◂','·'], ['▓','▤'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-
-        // ── 1x7 Processors ─────────────────────────────────────────────
-        PrecisionAssembler => BuildingArt { rows: &[
-            ['\u{250C}', '\u{25C2}'],  // ┌◂
-            ['\u{2502}', '\u{00B7}'],  // │·
-            ['\u{251C}', '\u{25C2}'],  // ├◂
-            ['\u{229B}', '\u{25B8}'],  // ⊛▸
-            ['\u{251C}', '\u{25C2}'],  // ├◂
-            ['\u{2502}', '\u{00B7}'],  // │·
-            ['\u{2514}', '\u{25C2}'],  // └◂
+        PlasticMolder => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['◻','◻'], ['═','╗'],
+            ['◂','·'], ['◻','▤'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        QuantumLab => BuildingArt { rows: &[
-            ['\u{03A8}', '\u{25C2}'],  // Ψ◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{25C8}', '\u{25C2}'],  // ◈◂
-            ['\u{22B9}', '\u{25B8}'],  // ⊹▸
-            ['\u{224B}', '\u{25C2}'],  // ≋◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{2248}', '\u{25C2}'],  // ≈◂
+        Electrolyzer => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['⊕','∿'], ['═','╗'],
+            ['◂','·'], ['⊕','∿'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        RocketAssembly => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{2560}', '\u{25C2}'],  // ╠◂
-            ['\u{22A1}', '\u{25B8}'],  // ⊡▸
-            ['\u{2560}', '\u{25C2}'],  // ╠◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
+        Caster => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▓','▓'], ['═','╗'],
+            ['◂','·'], ['◮','▤'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-
-        // ── 1x9 Processors ─────────────────────────────────────────────
-        Megassembler => BuildingArt { rows: &[
-            ['\u{2554}', '\u{25C2}'],  // ╔◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{2560}', '\u{25C2}'],  // ╠◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{22A1}', '\u{25B8}'],  // ⊡▸
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{2560}', '\u{25C2}'],  // ╠◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{255A}', '\u{25C2}'],  // ╚◂
+        CokeFurnace => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▓','▓'], ['═','╗'],
+            ['◂','·'], ['⌂','▓'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
-        SingularityLab => BuildingArt { rows: &[
-            ['\u{229E}', '\u{25C2}'],  // ⊞◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{229E}', '\u{25C2}'],  // ⊞◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{03A9}', '\u{00B7}'],  // Ω·
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{229E}', '\u{25C2}'],  // ⊞◂
-            ['\u{2551}', '\u{00B7}'],  // ║·
-            ['\u{229E}', '\u{25C2}'],  // ⊞◂
+        Gasifier => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▓','░'], ['═','╗'],
+            ['◂','·'], ['▓','░'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        Boiler => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['≈','≈'], ['═','╗'],
+            ['◂','·'], ['◮','≈'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        WaferCutter => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['⊗','·'], ['═','╗'],
+            ['◂','·'], ['⊗','▤'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
 
-        // ── Belts (1x1, arrow in col0, space in col1) ───────────────────
-        // Belts use entity_glyph() for directional arrows — art is a placeholder.
-        BasicBelt | FastBelt | ExpressBelt => BuildingArt { rows: &[
-            ['\u{2192}', ' '],  // → (placeholder, overridden by entity_glyph)
+        // ══════════════════════════════════════════════════════════════════
+        // 2-input processors (3×4) — 2 inputs left rows 1-2, output right
+        // row 2, waste bottom-center
+        // ══════════════════════════════════════════════════════════════════
+        Assembler => BuildingArt { width: 3, height: 4, tiles: &[
+            // Row 0: ╔═ ══ ═╗
+            ['╔','═'], ['═','═'], ['═','╗'],
+            // Row 1: ◂· ⊛· ║║   (input 0)
+            ['◂','·'], ['⊛','·'], ['║','║'],
+            // Row 2: ◂· ·⊛ ·▸   (input 1, output)
+            ['◂','·'], ['·','⊛'], ['·','▸'],
+            // Row 3: ╚═ ═▾ ═╝   (waste)
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        Mixer => BuildingArt { width: 3, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◎','◦'], ['║','║'],
+            ['◂','·'], ['◦','◎'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        ChemicalPlant => BuildingArt { width: 3, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◎','⊕'], ['║','║'],
+            ['◂','·'], ['⊕','◎'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        CircuitFabricator => BuildingArt { width: 3, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊞','·'], ['║','║'],
+            ['◂','·'], ['·','⊞'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        MotorAssembly => BuildingArt { width: 3, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊙','·'], ['║','║'],
+            ['◂','·'], ['·','⊙'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        CrushingMill => BuildingArt { width: 3, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊗','·'], ['║','║'],
+            ['◂','·'], ['·','⊗'], ['·','▸'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
         ]},
 
-        // ── Splitter / Merger (1x1) ─────────────────────────────────────
-        Splitter => BuildingArt { rows: &[
-            ['\u{254B}', '\u{25B8}'],  // ╋▸
+        // ══════════════════════════════════════════════════════════════════
+        // Tier-2 processors (4×4) — 2 inputs left rows 1-2, output right
+        // row 2
+        // ══════════════════════════════════════════════════════════════════
+        AdvancedAssembler => BuildingArt { width: 4, height: 4, tiles: &[
+            // Row 0
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            // Row 1: input 0
+            ['◂','·'], ['⊛','·'], ['·','·'], ['·','║'],
+            // Row 2: input 1, output
+            ['◂','·'], ['·','⊛'], ['·','·'], ['·','▸'],
+            // Row 3
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
-        Merger => BuildingArt { rows: &[
-            ['\u{25C2}', '\u{254B}'],  // ◂╋
+        Refinery => BuildingArt { width: 4, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['╥','║'], ['║','╥'], ['·','║'],
+            ['◂','·'], ['╨','╬'], ['╬','╨'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
-
-        // ── Underground belts ───────────────────────────────────────────
-        UndergroundEntrance => BuildingArt { rows: &[
-            ['\u{228F}', '\u{00B7}'],  // ⊏·
+        CrackingTower => BuildingArt { width: 4, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['┃','·'], ['·','┃'], ['·','║'],
+            ['◂','·'], ['╋','·'], ['·','╋'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
-        UndergroundExit => BuildingArt { rows: &[
-            ['\u{2290}', '\u{00B7}'],  // ⊐·
+        Cleanroom => BuildingArt { width: 4, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◇','·'], ['·','◇'], ['·','║'],
+            ['◂','·'], ['·','◇'], ['◇','·'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
-
-        // ── Pipes & Fluid transport ─────────────────────────────────────
-        Pipe => BuildingArt { rows: &[
-            ['\u{2550}', '\u{00B7}'],  // ═·
+        EnrichmentCascade => BuildingArt { width: 4, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◉','·'], ['·','◉'], ['·','║'],
+            ['◂','·'], ['·','◉'], ['◉','·'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
-        PipeJunction => BuildingArt { rows: &[
-            ['\u{256C}', '\u{00B7}'],  // ╬·
-        ]},
-        PumpStation => BuildingArt { rows: &[
-            ['\u{25CE}', '\u{2261}'],  // ◎≡
-        ]},
-        FluidTank => BuildingArt { rows: &[
-            ['\u{25FB}', '\u{2248}'],  // ◻≈
-        ]},
-        GasCompressor => BuildingArt { rows: &[
-            ['\u{25CB}', '\u{00B0}'],  // ○°
-        ]},
-        GasPipeline => BuildingArt { rows: &[
-            ['\u{2550}', '\u{00B0}'],  // ═°
-        ]},
-
-        // ── Rail & Transport ────────────────────────────────────────────
-        RailTrack => BuildingArt { rows: &[
-            ['\u{2550}', '\u{2550}'],  // ══
-        ]},
-        TrainStation => BuildingArt { rows: &[
-            ['\u{25AE}', '\u{25C2}'],  // ▮◂
-        ]},
-        DronePort => BuildingArt { rows: &[
-            ['\u{2295}', '\u{25C6}'],  // ⊕◆
+        CoolantProcessor => BuildingArt { width: 4, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◈','·'], ['·','◈'], ['·','║'],
+            ['◂','·'], ['·','◈'], ['◈','·'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
 
-        // ── Power Generators ────────────────────────────────────────────
-        CoalGenerator => BuildingArt { rows: &[
-            ['\u{2302}', '\u{2593}'],  // ⌂▓
+        // ══════════════════════════════════════════════════════════════════
+        // Tier-3 processors (5×5) — 3 inputs left rows 1-3, output right
+        // row 2, waste bottom-center
+        // ══════════════════════════════════════════════════════════════════
+        PrecisionAssembler => BuildingArt { width: 5, height: 5, tiles: &[
+            // Row 0
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            // Row 1: input 0
+            ['◂','·'], ['⊛','·'], ['·','·'], ['·','·'], ['·','║'],
+            // Row 2: input 1, output
+            ['◂','·'], ['·','⊛'], ['⊛','·'], ['·','·'], ['·','▸'],
+            // Row 3: input 2
+            ['◂','·'], ['·','·'], ['·','⊛'], ['·','·'], ['·','║'],
+            // Row 4: waste bottom-center
+            ['╚','═'], ['═','═'], ['═','▾'], ['═','═'], ['═','╝'],
         ]},
-        GasGenerator => BuildingArt { rows: &[
-            ['\u{2295}', '\u{2261}'],  // ⊕≡
+        QuantumLab => BuildingArt { width: 5, height: 5, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['Ψ','·'], ['·','≋'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','⊹'], ['⊹','·'], ['·','·'], ['·','▸'],
+            ['◂','·'], ['·','·'], ['≋','Ψ'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','▾'], ['═','═'], ['═','╝'],
         ]},
-        SolarArray => BuildingArt { rows: &[
-            ['\u{2299}', '\u{25A6}'],  // ⊙▦
-        ]},
-        WindTurbine => BuildingArt { rows: &[
-            ['\u{2295}', '\u{2540}'],  // ⊕╀
-        ]},
-        GeothermalPlant => BuildingArt { rows: &[
-            ['\u{25BD}', '\u{25C9}'],  // ▽◉
-        ]},
-        NuclearReactor => BuildingArt { rows: &[
-            ['\u{25C9}', '\u{25A3}'],  // ◉▣
-        ]},
-        FusionReactor => BuildingArt { rows: &[
-            ['\u{25C6}', '\u{25C9}'],  // ◆◉
-        ]},
-
-        // ── Power Distribution ──────────────────────────────────────────
-        Transformer => BuildingArt { rows: &[
-            ['\u{2295}', '\u{223F}'],  // ⊕∿
-        ]},
-        PowerPole => BuildingArt { rows: &[
-            ['\u{2301}', '\u{00B7}'],  // ⌁·
-        ]},
-        Substation => BuildingArt { rows: &[
-            ['\u{2302}', '\u{223F}'],  // ⌂∿
-        ]},
-        BatteryBank => BuildingArt { rows: &[
-            ['\u{25AE}', '\u{25AE}'],  // ▮▮
-        ]},
-        Accumulator => BuildingArt { rows: &[
-            ['\u{2588}', '\u{25AE}'],  // █▮
+        RocketAssembly => BuildingArt { width: 5, height: 5, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊡','·'], ['·','·'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','⊡'], ['⊡','·'], ['·','·'], ['·','▸'],
+            ['◂','·'], ['·','·'], ['·','⊡'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','▾'], ['═','═'], ['═','╝'],
         ]},
 
-        // ── Storage ─────────────────────────────────────────────────────
-        OutputBin => BuildingArt { rows: &[
-            ['\u{25BC}', '\u{25A3}'],  // ▼▣
+        // ══════════════════════════════════════════════════════════════════
+        // Tier-4 processors — Megassembler (6×6), SingularityLab (6×7)
+        // ══════════════════════════════════════════════════════════════════
+        Megassembler => BuildingArt { width: 6, height: 6, tiles: &[
+            // Row 0
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            // Row 1: input 0
+            ['◂','·'], ['⊡','·'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            // Row 2: input 1
+            ['◂','·'], ['·','⊡'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            // Row 3: input 2, output
+            ['◂','·'], ['·','·'], ['⊡','⊡'], ['⊡','·'], ['·','·'], ['·','▸'],
+            // Row 4: input 3
+            ['◂','·'], ['·','·'], ['·','·'], ['·','⊡'], ['·','·'], ['·','║'],
+            // Row 5
+            ['╚','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
-        Warehouse => BuildingArt { rows: &[
-            ['\u{25A1}', '\u{25A6}'],  // □▦
-        ]},
-        SiloHopper => BuildingArt { rows: &[
-            ['\u{25BD}', '\u{25A6}'],  // ▽▦
-        ]},
-        CryoTank => BuildingArt { rows: &[
-            ['\u{25FB}', '\u{25C7}'],  // ◻◇
-        ]},
-        ContainmentVault => BuildingArt { rows: &[
-            ['\u{25FC}', '\u{25A3}'],  // ◼▣
-        ]},
-
-        // ── Defense ─────────────────────────────────────────────────────
-        Wall => BuildingArt { rows: &[
-            ['\u{2588}', '\u{2588}'],  // ██
-        ]},
-        ReinforcedWall => BuildingArt { rows: &[
-            ['\u{2588}', '\u{2588}'],  // ██
-        ]},
-        Turret => BuildingArt { rows: &[
-            ['\u{2295}', '\u{25CE}'],  // ⊕◎
-        ]},
-        ShieldGenerator => BuildingArt { rows: &[
-            ['\u{229B}', '\u{25CE}'],  // ⊛◎
-        ]},
-
-        // ── Environmental / Waste ───────────────────────────────────────
-        WasteDump => BuildingArt { rows: &[
-            ['\u{25A1}', '\u{00D7}'],  // □×
-        ]},
-        RecyclingPlant => BuildingArt { rows: &[
-            ['\u{25CE}', '\u{00D7}'],  // ◎×
-        ]},
-        IncinerationPlant => BuildingArt { rows: &[
-            ['\u{22A0}', '\u{2593}'],  // ⊠▓
-        ]},
-        FilterStack => BuildingArt { rows: &[
-            ['\u{224B}', '\u{25CE}'],  // ≋◎
-        ]},
-        ScrubberUnit => BuildingArt { rows: &[
-            ['\u{224B}', '\u{25CE}'],  // ≋◎
-        ]},
-        ContainmentField => BuildingArt { rows: &[
-            ['\u{229E}', '\u{25C9}'],  // ⊞◉
+        SingularityLab => BuildingArt { width: 6, height: 7, tiles: &[
+            // Row 0
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            // Row 1: input 0
+            ['◂','·'], ['Ω','·'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            // Row 2: input 1
+            ['◂','·'], ['·','Ω'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            // Row 3: input 2, output
+            ['◂','·'], ['·','·'], ['Ω','·'], ['·','Ω'], ['·','·'], ['·','▸'],
+            // Row 4: input 3
+            ['◂','·'], ['·','·'], ['·','·'], ['Ω','·'], ['·','·'], ['·','║'],
+            // Row 5: input 4
+            ['◂','·'], ['·','·'], ['·','·'], ['·','Ω'], ['·','·'], ['·','║'],
+            // Row 6
+            ['╚','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
 
-        // ── Research ────────────────────────────────────────────────────
-        ResearchLab => BuildingArt { rows: &[
-            ['\u{229E}', '\u{25C6}'],  // ⊞◆
-        ]},
-        AdvancedLab => BuildingArt { rows: &[
-            ['\u{03A8}', '\u{25C6}'],  // Ψ◆
+        // ══════════════════════════════════════════════════════════════════
+        // Belts (1×1) — placeholder, overridden by entity_glyph
+        // ══════════════════════════════════════════════════════════════════
+        BasicBelt | FastBelt | ExpressBelt => BuildingArt { width: 1, height: 1, tiles: &[
+            ['→',' '],
         ]},
 
-        // ── Victory ─────────────────────────────────────────────────────
-        SpaceElevatorBase => BuildingArt { rows: &[
-            ['\u{22A1}', '\u{25C6}'],  // ⊡◆
+        // ══════════════════════════════════════════════════════════════════
+        // Splitter (3×3): 1 input left-center, 2 outputs right rows 0,2
+        // ══════════════════════════════════════════════════════════════════
+        Splitter => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','▸'],
+            ['◂','·'], ['╋','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','▸'],
         ]},
-        DysonSwarmLauncher => BuildingArt { rows: &[
-            ['\u{2299}', '\u{25C6}'],  // ⊙◆
+
+        // ══════════════════════════════════════════════════════════════════
+        // Merger (3×3): 2 inputs left rows 0,2, 1 output right-center
+        // ══════════════════════════════════════════════════════════════════
+        Merger => BuildingArt { width: 3, height: 3, tiles: &[
+            ['◂','═'], ['═','═'], ['═','╗'],
+            ['║','·'], ['·','╋'], ['·','▸'],
+            ['◂','═'], ['═','═'], ['═','╝'],
         ]},
-        WarpGateFrame => BuildingArt { rows: &[
-            ['\u{25C8}', '\u{25C6}'],  // ◈◆
+
+        // ══════════════════════════════════════════════════════════════════
+        // Underground belts (1×1)
+        // ══════════════════════════════════════════════════════════════════
+        UndergroundEntrance => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⊏','·'],
+        ]},
+        UndergroundExit => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⊐','·'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Pipes & Fluid transport — 1×1: Pipe, PipeJunction, GasPipeline
+        //                          3×2: PumpStation, FluidTank, GasCompressor
+        // ══════════════════════════════════════════════════════════════════
+        Pipe => BuildingArt { width: 1, height: 1, tiles: &[
+            ['═','·'],
+        ]},
+        PipeJunction => BuildingArt { width: 1, height: 1, tiles: &[
+            ['╬','·'],
+        ]},
+        GasPipeline => BuildingArt { width: 1, height: 1, tiles: &[
+            ['═','°'],
+        ]},
+        PumpStation => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['▴','≡'], ['═','╗'],
+            ['◂','·'], ['◎','≡'], ['·','▸'],
+        ]},
+        FluidTank => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['▴','≈'], ['═','╗'],
+            ['◂','·'], ['◻','≈'], ['·','▸'],
+        ]},
+        GasCompressor => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['▴','°'], ['═','╗'],
+            ['◂','·'], ['○','°'], ['·','▸'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Rail & Transport — 1×1: RailTrack; 3×3: TrainStation, DronePort
+        // ══════════════════════════════════════════════════════════════════
+        RailTrack => BuildingArt { width: 1, height: 1, tiles: &[
+            ['═','═'],
+        ]},
+        TrainStation => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['▮','═'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        DronePort => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊕','◆'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Power Generators — 3×3: Coal, Gas, Solar, Wind, Geothermal
+        //                   5×5: Nuclear, Fusion
+        // ══════════════════════════════════════════════════════════════════
+        CoalGenerator => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⌂','▓'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        GasGenerator => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊕','≡'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        SolarArray => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊙','▦'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        WindTurbine => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊕','╀'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        GeothermalPlant => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['▽','◉'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        NuclearReactor => BuildingArt { width: 5, height: 5, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◉','·'], ['·','▣'], ['·','·'], ['·','║'],
+            ['║','·'], ['·','◉'], ['▣','·'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','·'], ['·','◉'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','▾'], ['═','═'], ['═','╝'],
+        ]},
+        FusionReactor => BuildingArt { width: 5, height: 5, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◆','·'], ['·','◉'], ['·','·'], ['·','║'],
+            ['║','·'], ['·','◆'], ['◉','·'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','·'], ['·','◆'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','▾'], ['═','═'], ['═','╝'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Power Distribution (1×1)
+        // ══════════════════════════════════════════════════════════════════
+        Transformer => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⊕','∿'],
+        ]},
+        PowerPole => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⌁','·'],
+        ]},
+        Substation => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⌂','∿'],
+        ]},
+        BatteryBank => BuildingArt { width: 1, height: 1, tiles: &[
+            ['▮','▮'],
+        ]},
+        Accumulator => BuildingArt { width: 1, height: 1, tiles: &[
+            ['█','▮'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Storage — 3×2: OutputBin, SiloHopper
+        //          3×3: Warehouse, CryoTank, ContainmentVault
+        // ══════════════════════════════════════════════════════════════════
+        OutputBin => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['▴','▼'], ['═','╗'],
+            ['◂','·'], ['▣','▣'], ['·','▸'],
+        ]},
+        SiloHopper => BuildingArt { width: 3, height: 2, tiles: &[
+            ['╔','═'], ['▴','▽'], ['═','╗'],
+            ['◂','·'], ['▦','▦'], ['·','▸'],
+        ]},
+        Warehouse => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▴','═'], ['═','╗'],
+            ['◂','·'], ['□','▦'], ['·','▸'],
+            ['╚','═'], ['▾','═'], ['═','╝'],
+        ]},
+        CryoTank => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▴','═'], ['═','╗'],
+            ['◂','·'], ['◻','◇'], ['·','▸'],
+            ['╚','═'], ['▾','═'], ['═','╝'],
+        ]},
+        ContainmentVault => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['▴','═'], ['═','╗'],
+            ['◂','·'], ['◼','▣'], ['·','▸'],
+            ['╚','═'], ['▾','═'], ['═','╝'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Defense (1×1)
+        // ══════════════════════════════════════════════════════════════════
+        Wall => BuildingArt { width: 1, height: 1, tiles: &[
+            ['█','█'],
+        ]},
+        ReinforcedWall => BuildingArt { width: 1, height: 1, tiles: &[
+            ['█','█'],
+        ]},
+        Turret => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⊕','◎'],
+        ]},
+        ShieldGenerator => BuildingArt { width: 1, height: 1, tiles: &[
+            ['⊛','◎'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Environmental / Waste (3×3) — input left-center, waste
+        // bottom-center
+        // ══════════════════════════════════════════════════════════════════
+        WasteDump => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['□','×'], ['·','║'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        RecyclingPlant => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◎','×'], ['·','║'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        IncinerationPlant => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊠','▓'], ['·','║'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        FilterStack => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['≋','◎'], ['·','║'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        ScrubberUnit => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['≋','≈'], ['·','║'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+        ContainmentField => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊞','◉'], ['·','║'],
+            ['╚','═'], ['═','▾'], ['═','╝'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Research — ResearchLab (3×3), AdvancedLab (4×4)
+        // ══════════════════════════════════════════════════════════════════
+        ResearchLab => BuildingArt { width: 3, height: 3, tiles: &[
+            ['╔','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊞','◆'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','╝'],
+        ]},
+        AdvancedLab => BuildingArt { width: 4, height: 4, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['Ψ','·'], ['·','◆'], ['·','║'],
+            ['◂','·'], ['·','Ψ'], ['◆','·'], ['·','▸'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','╝'],
+        ]},
+
+        // ══════════════════════════════════════════════════════════════════
+        // Victory (6×6) — 4 inputs left rows 1-4, output right row 3
+        // ══════════════════════════════════════════════════════════════════
+        SpaceElevatorBase => BuildingArt { width: 6, height: 6, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊡','·'], ['·','·'], ['·','◆'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','⊡'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','·'], ['⊡','◆'], ['◆','⊡'], ['·','·'], ['·','▸'],
+            ['◂','·'], ['·','·'], ['·','·'], ['·','⊡'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╝'],
+        ]},
+        DysonSwarmLauncher => BuildingArt { width: 6, height: 6, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['⊙','·'], ['·','·'], ['·','◆'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','⊙'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','·'], ['⊙','◆'], ['◆','⊙'], ['·','·'], ['·','▸'],
+            ['◂','·'], ['·','·'], ['·','·'], ['·','⊙'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╝'],
+        ]},
+        WarpGateFrame => BuildingArt { width: 6, height: 6, tiles: &[
+            ['╔','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╗'],
+            ['◂','·'], ['◈','·'], ['·','·'], ['·','◆'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','◈'], ['·','·'], ['·','·'], ['·','·'], ['·','║'],
+            ['◂','·'], ['·','·'], ['◈','◆'], ['◆','◈'], ['·','·'], ['·','▸'],
+            ['◂','·'], ['·','·'], ['·','·'], ['·','◈'], ['·','·'], ['·','║'],
+            ['╚','═'], ['═','═'], ['═','═'], ['═','═'], ['═','═'], ['═','╝'],
         ]},
     }
 }
@@ -388,16 +604,28 @@ pub fn building_art(entity_type: EntityType) -> BuildingArt {
 /// Returns the 2-character art for a specific tile of a building, with rotation applied.
 ///
 /// For belts, uses the existing directional arrow system.
-/// For other buildings, looks up the art row for the given tile_index and applies rotation.
-pub fn entity_art(entity_type: EntityType, facing: Facing, tile_index: usize) -> [char; 2] {
+/// For other buildings, looks up the art tile for the given (tile_row, tile_col) and applies rotation.
+pub fn entity_art(entity_type: EntityType, facing: Facing, tile_row: usize, tile_col: usize) -> [char; 2] {
     // Belts use directional arrows — special handling
     if matches!(entity_type, EntityType::BasicBelt | EntityType::FastBelt | EntityType::ExpressBelt) {
         return [entity_glyph(entity_type, facing), ' '];
     }
 
     let art = building_art(entity_type);
-    let row = art.rows.get(tile_index).copied().unwrap_or(['\u{00B7}', '\u{00B7}']);
-    rotate_art(row, facing)
+    let (ar, ac) = rotated_art_coords(tile_row, tile_col, facing, art.width, art.height);
+    let chars = art.tile_at(ar, ac);
+    rotate_art(chars, facing)
+}
+
+/// Transform screen-relative (row, col) within a rotated building back to the
+/// art-definition coordinate system (base facing = Right).
+pub fn rotated_art_coords(row: usize, col: usize, facing: Facing, w: usize, h: usize) -> (usize, usize) {
+    match facing {
+        Facing::Right => (row, col),
+        Facing::Down  => (col, h.saturating_sub(1).saturating_sub(row)),
+        Facing::Left  => (h.saturating_sub(1).saturating_sub(row), w.saturating_sub(1).saturating_sub(col)),
+        Facing::Up    => (w.saturating_sub(1).saturating_sub(col), row),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -417,20 +645,38 @@ fn rotate_art(row: [char; 2], facing: Facing) -> [char; 2] {
 /// Mirror a character horizontally (left/right swap).
 fn mirror_h(c: char) -> char {
     match c {
-        '\u{25C2}' => '\u{25B8}', '\u{25B8}' => '\u{25C2}',  // ◂ ↔ ▸
-        '\u{25B4}' => '\u{25BE}', '\u{25BE}' => '\u{25B4}',  // ▴ ↔ ▾
-        '\u{2554}' => '\u{2557}', '\u{2557}' => '\u{2554}',  // ╔ ↔ ╗
-        '\u{255A}' => '\u{255D}', '\u{255D}' => '\u{255A}',  // ╚ ↔ ╝
-        '\u{2560}' => '\u{2563}', '\u{2563}' => '\u{2560}',  // ╠ ↔ ╣
-        '\u{251C}' => '\u{2524}', '\u{2524}' => '\u{251C}',  // ├ ↔ ┤
-        '\u{250C}' => '\u{2510}', '\u{2510}' => '\u{250C}',  // ┌ ↔ ┐
-        '\u{2514}' => '\u{2518}', '\u{2518}' => '\u{2514}',  // └ ↔ ┘
-        '\u{2552}' => '\u{2555}', '\u{2555}' => '\u{2552}',  // ╒ ↔ ╕
-        '\u{2558}' => '\u{255B}', '\u{255B}' => '\u{2558}',  // ╘ ↔ ╛
-        '\u{2571}' => '\u{2572}', '\u{2572}' => '\u{2571}',  // ╱ ↔ ╲
-        '\u{256D}' => '\u{256E}', '\u{256E}' => '\u{256D}',  // ╭ ↔ ╮
-        '\u{2570}' => '\u{256F}', '\u{256F}' => '\u{2570}',  // ╰ ↔ ╯
-        '\u{228F}' => '\u{2290}', '\u{2290}' => '\u{228F}',  // ⊏ ↔ ⊐
+        // Directional arrows
+        '◂' => '▸', '▸' => '◂',  // ◂ ↔ ▸
+        '▴' => '▾', '▾' => '▴',  // ▴ ↔ ▾
+        '←' => '→', '→' => '←',  // ← ↔ →
+        '↑' => '↓', '↓' => '↑',  // ↑ ↔ ↓  (vertical stays same for H-mirror, but include for completeness)
+        // Double-line box corners
+        '╔' => '╗', '╗' => '╔',  // ╔ ↔ ╗
+        '╚' => '╝', '╝' => '╚',  // ╚ ↔ ╝
+        // Double-line T-junctions
+        '╠' => '╣', '╣' => '╠',  // ╠ ↔ ╣
+        '╥' => '╥',              // ╥ is symmetric
+        '╨' => '╨',              // ╨ is symmetric
+        // Single-line corners
+        '┌' => '┐', '┐' => '┌',  // ┌ ↔ ┐
+        '└' => '┘', '┘' => '└',  // └ ↔ ┘
+        // Single-line T-junctions
+        '├' => '┤', '┤' => '├',  // ├ ↔ ┤
+        '┬' => '┬',              // ┬ is symmetric
+        '┴' => '┴',              // ┴ is symmetric
+        // Mixed double/single corners
+        '╒' => '╕', '╕' => '╒',  // ╒ ↔ ╕
+        '╘' => '╛', '╛' => '╘',  // ╘ ↔ ╛
+        '╓' => '╖', '╖' => '╓',  // ╓ ↔ ╖
+        '╙' => '╜', '╜' => '╙',  // ╙ ↔ ╜
+        // Rounded corners
+        '╭' => '╮', '╮' => '╭',  // ╭ ↔ ╮
+        '╰' => '╯', '╯' => '╰',  // ╰ ↔ ╯
+        // Diagonal lines
+        '╱' => '╲', '╲' => '╱',  // ╱ ↔ ╲
+        // Underground entrance/exit
+        '⊏' => '⊐', '⊐' => '⊏',  // ⊏ ↔ ⊐
+        // Symmetric characters (no change needed): ═ ║ ╬ ╋ ┃ ╀ · etc.
         _ => c,
     }
 }
@@ -438,10 +684,63 @@ fn mirror_h(c: char) -> char {
 /// Rotate a directional character 90° clockwise.
 fn rotate_cw(c: char) -> char {
     match c {
-        '\u{25C2}' => '\u{25B4}',  // ◂ → ▴
-        '\u{25B8}' => '\u{25BE}',  // ▸ → ▾
-        '\u{25B4}' => '\u{25B8}',  // ▴ → ▸
-        '\u{25BE}' => '\u{25C2}',  // ▾ → ◂
+        // Triangular directional arrows
+        '◂' => '▴',  // ◂ → ▴
+        '▴' => '▸',  // ▴ → ▸
+        '▸' => '▾',  // ▸ → ▾
+        '▾' => '◂',  // ▾ → ◂
+        // Unicode arrows
+        '←' => '↑',  // ← → ↑
+        '↑' => '→',  // ↑ → →
+        '→' => '↓',  // → → ↓
+        '↓' => '←',  // ↓ → ←
+        // Double-line box corners (rotate CW: top-left→top-right→bottom-right→bottom-left)
+        '╔' => '╗',  // ╔ → ╗
+        '╗' => '╝',  // ╗ → ╝
+        '╝' => '╚',  // ╝ → ╚
+        '╚' => '╔',  // ╚ → ╔
+        // Double-line edges swap orientation
+        '═' => '║',  // ═ → ║
+        '║' => '═',  // ║ → ═
+        // Double-line T-junctions
+        '╠' => '╦',  // ╠ → ╦
+        '╦' => '╣',  // ╦ → ╣
+        '╣' => '╩',  // ╣ → ╩
+        '╩' => '╠',  // ╩ → ╠
+        '╥' => '╢',  // ╥ → ╢ (single-top-T rotates)
+        '╢' => '╨',  // ╢ → ╨
+        '╨' => '╟',  // ╨ → ╟
+        '╟' => '╥',  // ╟ → ╥
+        // Single-line corners
+        '┌' => '┐',  // ┌ → ┐
+        '┐' => '┘',  // ┐ → ┘
+        '┘' => '└',  // ┘ → └
+        '└' => '┌',  // └ → ┌
+        // Single-line T-junctions
+        '├' => '┬',  // ├ → ┬
+        '┬' => '┤',  // ┬ → ┤
+        '┤' => '┴',  // ┤ → ┴
+        '┴' => '├',  // ┴ → ├
+        // Single-line edges
+        '─' => '│',  // ─ → │
+        '│' => '─',  // │ → ─
+        // Heavy single-line edges
+        '━' => '┃',  // ━ → ┃
+        '┃' => '━',  // ┃ → ━
+        // Mixed double/single corners
+        '╒' => '╕',  // ╒ → ╕
+        '╕' => '╛',  // ╕ → ╛
+        '╛' => '╘',  // ╛ → ╘
+        '╘' => '╒',  // ╘ → ╒
+        // Rounded corners
+        '╭' => '╮',  // ╭ → ╮
+        '╮' => '╯',  // ╮ → ╯
+        '╯' => '╰',  // ╯ → ╰
+        '╰' => '╭',  // ╰ → ╭
+        // Underground entrance/exit
+        '⊏' => '⊏',  // not rotational, keep same
+        '⊐' => '⊐',  // not rotational, keep same
+        // Symmetric characters (╬, ╋, etc.) stay the same
         _ => c,
     }
 }
@@ -608,7 +907,7 @@ pub fn entity_glyph(entity_type: EntityType, facing: Facing) -> char {
             Facing::Left => '\u{21E6}',
             Facing::Right => '\u{21E8}',
         },
-        _ => building_art(entity_type).rows[0][0],
+        _ => building_art(entity_type).tile_at(0, 0)[0],
     }
 }
 
@@ -639,19 +938,28 @@ pub fn entity_style_for_state(
     let base = building_fg(entity_type);
     match state {
         MachineState::Idle => {
-            let dimmed = dim_color(base, 0.5);
-            Style::default().fg(Color::Rgb(dimmed.0, dimmed.1, dimmed.2))
+            let dimmed = dim_color(base, 0.65);
+            let glow = building_glow_bg(entity_type);
+            let bg = (glow.0 / 2, glow.1 / 2, glow.2 / 2);
+            Style::default()
+                .fg(Color::Rgb(dimmed.0, dimmed.1, dimmed.2))
+                .bg(Color::Rgb(bg.0.max(12), bg.1.max(12), bg.2.max(12)))
         }
         MachineState::Processing => {
             // Pulse: oscillate brightness based on frame
             let pulse = ((frame % 6) as f32 / 6.0 * std::f32::consts::PI).sin();
-            let pr = (base.0 as f32 + pulse * 35.0).clamp(0.0, 255.0) as u8;
-            let pg = (base.1 as f32 + pulse * 35.0).clamp(0.0, 255.0) as u8;
-            let pb = (base.2 as f32 + pulse * 35.0).clamp(0.0, 255.0) as u8;
+            let pr = (base.0 as f32 + pulse * 50.0).clamp(0.0, 255.0) as u8;
+            let pg = (base.1 as f32 + pulse * 50.0).clamp(0.0, 255.0) as u8;
+            let pb = (base.2 as f32 + pulse * 50.0).clamp(0.0, 255.0) as u8;
             let glow = building_glow_bg(entity_type);
+            // BG also pulses for stronger effect
+            let bg_pulse = (pulse * 0.5 + 0.5).max(0.0);
+            let bgr = (glow.0 as f32 * (1.0 + bg_pulse)).min(255.0) as u8;
+            let bgg = (glow.1 as f32 * (1.0 + bg_pulse)).min(255.0) as u8;
+            let bgb = (glow.2 as f32 * (1.0 + bg_pulse)).min(255.0) as u8;
             Style::default()
                 .fg(Color::Rgb(pr, pg, pb))
-                .bg(Color::Rgb(glow.0, glow.1, glow.2))
+                .bg(Color::Rgb(bgr, bgg, bgb))
                 .add_modifier(Modifier::BOLD)
         }
         MachineState::Blocked => {
@@ -686,8 +994,8 @@ pub fn entity_style_for_state(
 /// Returns a dimmed conveyor style (when idle / not carrying a resource).
 pub fn conveyor_idle_style() -> Style {
     Style::default()
-        .fg(Color::Rgb(50, 50, 50))
-        .add_modifier(Modifier::DIM)
+        .fg(Color::Rgb(120, 120, 130))
+        .bg(Color::Rgb(22, 26, 34))
 }
 
 /// Belt animation: get the animated glyph for an empty belt based on frame counter.
@@ -737,14 +1045,17 @@ pub fn belt_animated_glyph(belt_type: EntityType, facing: Facing, frame: u32) ->
 pub fn belt_style(belt_type: EntityType) -> Style {
     match belt_type {
         EntityType::BasicBelt => Style::default()
-            .fg(Color::Rgb(200, 200, 200))
-            .bg(Color::Rgb(20, 20, 22)),
+            .fg(Color::Rgb(220, 220, 230))
+            .bg(Color::Rgb(22, 26, 34))
+            .add_modifier(Modifier::BOLD),
         EntityType::FastBelt => Style::default()
-            .fg(Color::Rgb(220, 200, 80))
-            .bg(Color::Rgb(30, 26, 8)),
+            .fg(Color::Rgb(255, 220, 50))
+            .bg(Color::Rgb(30, 28, 14))
+            .add_modifier(Modifier::BOLD),
         EntityType::ExpressBelt => Style::default()
-            .fg(Color::Rgb(100, 160, 255))
-            .bg(Color::Rgb(10, 20, 40)),
+            .fg(Color::Rgb(80, 160, 255))
+            .bg(Color::Rgb(12, 22, 40))
+            .add_modifier(Modifier::BOLD),
         _ => Style::default().fg(Color::Rgb(200, 200, 200)),
     }
 }
@@ -758,14 +1069,19 @@ pub fn resource_glyph(resource: Resource) -> char {
     resource.glyph()
 }
 
+/// Returns the background glow color for a resource (resource color at ~20% brightness).
+pub fn resource_glow_bg(resource: Resource) -> Color {
+    let (r, g, b) = resource.color();
+    Color::Rgb(r / 5 + 8, g / 5 + 8, b / 5 + 8)
+}
+
 /// Returns the style for a resource glyph using ONLY Color::Rgb.
 pub fn resource_style(resource: Resource) -> Style {
     let (r, g, b) = resource.color();
-    let mut style = Style::default().fg(Color::Rgb(r, g, b));
-    if resource.tier() >= 2 {
-        style = style.add_modifier(Modifier::BOLD);
-    }
-    style
+    Style::default()
+        .fg(Color::Rgb(r, g, b))
+        .bg(resource_glow_bg(resource))
+        .add_modifier(Modifier::BOLD)
 }
 
 // ---------------------------------------------------------------------------

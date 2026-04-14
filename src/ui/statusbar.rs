@@ -96,7 +96,8 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
     spans.extend(right_spans);
 
     let line = Line::from(spans);
-    let paragraph = Paragraph::new(line);
+    let paragraph = Paragraph::new(line)
+        .style(Style::default().bg(Color::Rgb(22, 26, 34)));
     frame.render_widget(paragraph, area);
 }
 
@@ -139,10 +140,10 @@ fn render_command_line(frame: &mut Frame, area: Rect, app: &AppState) {
 fn mode_display(app: &AppState) -> (String, Style) {
     match &app.mode {
         Mode::Normal => (
-            " NORMAL ".to_string(),
+            " -- NORMAL -- ".to_string(),
             Style::default()
-                .fg(Color::Rgb(220, 220, 220))
-                .bg(Color::Rgb(30, 35, 45)),
+                .fg(Color::Rgb(180, 190, 210))
+                .bg(Color::Rgb(30, 35, 48)),
         ),
         Mode::Insert => {
             let arrow = app.insert_facing.arrow_glyph();

@@ -46,7 +46,12 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
     let mut app = AppState::new(80, 50);
     let mut input = InputState::new();
     let mut tutorial: Option<TutorialState> = None;
-    let mut viewport = Viewport::new(40, 24);
+
+    // Size viewport to actual terminal dimensions
+    let (term_w, term_h) = crossterm::terminal::size().unwrap_or((80, 24));
+    let initial_cols = (term_w as usize) / 2;
+    let initial_rows = (term_h as usize).saturating_sub(1); // status bar
+    let mut viewport = Viewport::new(initial_cols, initial_rows);
 
     // Check for existing save
     app.has_save = save::default_save_path().exists();
@@ -78,12 +83,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                     }
                 }
                 Event::Resize(w, h) => {
-                    let cols = (w as usize).saturating_sub(if app.show_sidebar { 16 } else { 0 })
-                        / 2;
-                    let rows =
-                        (h as usize).saturating_sub(1 + if app.show_tutorial { 3 } else { 0 });
-                    viewport.width = cols;
-                    viewport.height = rows;
+                    resize_viewport(&mut viewport, w as usize, h as usize, &app);
                 }
                 _ => {}
             }
@@ -120,7 +120,7 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<
                     if config::get_level(level).is_some() {
                         app.status_message =
                             format!("Level {} complete! Starting next level...", level - 1);
-                        start_level(&mut app, &mut input, &mut tutorial, level);
+                        start_level(&mut app, &mut input, &mut tutorial, level, &mut viewport);
                     } else {
                         // All tutorial levels finished
                         app.freeplay_unlocked = true;
@@ -178,11 +178,11 @@ fn handle_key(
         match key.code {
             KeyCode::Char('1') => {
                 // Start tutorial from level 1
-                start_level(app, input, tutorial, 1);
+                start_level(app, input, tutorial, 1, viewport);
             }
             KeyCode::Char('2') => {
                 if app.freeplay_unlocked {
-                    start_freeplay(app, input, tutorial);
+                    start_freeplay(app, input, tutorial, viewport);
                 }
             }
             KeyCode::Char('3') => {
@@ -280,17 +280,17 @@ fn handle_key(
                 app.popup = Some(PopupKind::Research);
             }
             Command::CmdLevel(Some(n)) => {
-                start_level(app, input, tutorial, *n);
+                start_level(app, input, tutorial, *n, viewport);
             }
             Command::CmdRestart => {
                 if let Some(ref tut) = tutorial {
                     let level = tut.current_level;
-                    start_level(app, input, tutorial, level);
+                    start_level(app, input, tutorial, level, viewport);
                 }
             }
             Command::CmdFreeplay => {
                 if app.freeplay_unlocked {
-                    start_freeplay(app, input, tutorial);
+                    start_freeplay(app, input, tutorial, viewport);
                 } else {
                     app.status_message = "Complete level 6 to unlock Freeplay".to_string();
                     app.status_error = true;
@@ -380,6 +380,13 @@ fn render_frame(
         return;
     }
 
+    // Fill root terminal background — no pure black
+    frame.render_widget(
+        ratatui::widgets::Block::default()
+            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Rgb(10, 12, 16))),
+        size,
+    );
+
     let areas = ui::layout::compute_layout(size, app.show_sidebar, app.show_tutorial);
 
     // Tutorial hint bar
@@ -411,6 +418,7 @@ fn start_level(
     input: &mut InputState,
     tutorial: &mut Option<TutorialState>,
     level: usize,
+    viewport: &mut Viewport,
 ) {
     if let Some(cfg) = config::get_level(level) {
         // Reset game state
@@ -447,6 +455,11 @@ fn start_level(
         app.show_tutorial = true;
         app.current_level = Some(level);
 
+        // Resize viewport for new tutorial/sidebar state
+        if let Ok((w, h)) = crossterm::terminal::size() {
+            resize_viewport(viewport, w as usize, h as usize, app);
+        }
+
         // Reset input state
         input.parser = vimforge::vim::parser::VimParser::new();
         input.cursor_x = 0;
@@ -458,6 +471,7 @@ fn start_freeplay(
     app: &mut AppState,
     input: &mut InputState,
     tutorial: &mut Option<TutorialState>,
+    viewport: &mut Viewport,
 ) {
     if let Some(cfg) = config::get_level(14) {
         app.world = hecs::World::new();
@@ -480,10 +494,24 @@ fn start_freeplay(
         app.current_level = None;
         app.inventory = vimforge::game::inventory::Inventory::new();
 
+        // Resize viewport for new tutorial/sidebar state
+        if let Ok((w, h)) = crossterm::terminal::size() {
+            resize_viewport(viewport, w as usize, h as usize, app);
+        }
+
         input.parser = vimforge::vim::parser::VimParser::new();
         input.cursor_x = 0;
         input.cursor_y = 0;
     }
+}
+
+/// Recompute viewport tile dimensions from terminal size and UI chrome.
+fn resize_viewport(viewport: &mut Viewport, term_w: usize, term_h: usize, app: &AppState) {
+    let sidebar = if app.show_sidebar { 20 } else { 0 };
+    let tutorial = if app.show_tutorial { 3 } else { 0 };
+    let cols = term_w.saturating_sub(sidebar) / 2;
+    let rows = term_h.saturating_sub(1 + tutorial); // 1 for status bar
+    viewport.resize(cols, rows);
 }
 
 /// Check if the current tutorial level is complete.

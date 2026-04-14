@@ -1,6 +1,5 @@
 use hecs::World;
 
-use crate::ecs::archetypes;
 use crate::ecs::components::*;
 use crate::game::inventory::Inventory;
 use crate::map::grid::Map;
@@ -199,17 +198,19 @@ fn restore_snapshot(world: &mut World, map: &mut Map, inventory: &mut Inventory,
         }
     }
 
-    // Restore entities
+    // Restore entities using multi-tile placement
     for se in &snapshot.entities {
-        let entity = archetypes::spawn_entity(
+        let entity = match map.place_multitile_entity(
             world,
-            se.entity_type,
             se.x,
             se.y,
+            se.entity_type,
             se.facing,
             se.player_placed,
-        );
-        map.set_entity(se.x, se.y, entity);
+        ) {
+            Some(e) => e,
+            None => continue, // placement blocked — skip
+        };
 
         // Restore processing state
         if let Some(ps) = &se.processing {

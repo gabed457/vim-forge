@@ -638,10 +638,10 @@ impl VimParser {
                 vec![Command::DeleteUnderCursor(count)]
             }
 
-            // Toggle facing
+            // Rotate entity under cursor (or toggle insert_facing if empty)
             KeyCode::Char('~') => {
                 self.reset_pending();
-                vec![Command::ToggleFacing]
+                vec![Command::RotateEntityUnderCursor]
             }
 
             // Contract board
@@ -1126,9 +1126,62 @@ impl VimParser {
             KeyCode::Char('l') if mods.is_empty() => {
                 vec![Command::InsertMoveOnly(Direction::Right)]
             }
-            // Quick-place shortcuts
+
+            // --- Direct quick-place (lowercase) ---
+            KeyCode::Char('c') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::BasicBelt)]
+            }
+            KeyCode::Char('s') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Smelter)]
+            }
+            KeyCode::Char('a') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Assembler)]
+            }
             KeyCode::Char('w') if mods.is_empty() => {
                 vec![Command::PlaceEntity(EntityType::Wall)]
+            }
+            KeyCode::Char('p') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Pipe)]
+            }
+            KeyCode::Char('b') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Splitter)]
+            }
+            KeyCode::Char('m') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Merger)]
+            }
+            KeyCode::Char('u') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::UndergroundEntrance)]
+            }
+            KeyCode::Char('e') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::CoalGenerator)]
+            }
+            KeyCode::Char('r') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::ResearchLab)]
+            }
+            KeyCode::Char('t') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::RailTrack)]
+            }
+            KeyCode::Char('d') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::WasteDump)]
+            }
+            KeyCode::Char('g') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::Warehouse)]
+            }
+            KeyCode::Char('f') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::PumpStation)]
+            }
+            KeyCode::Char('o') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::DronePort)]
+            }
+            KeyCode::Char('q') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::PrecisionAssembler)]
+            }
+            KeyCode::Char('x') if mods.is_empty() => {
+                vec![Command::PlaceEntity(EntityType::RecyclingPlant)]
+            }
+            KeyCode::Char('n') if mods.is_empty() => {
+                // Circuit reserved — no-op
+                vec![]
             }
             KeyCode::Char('1') if mods.is_empty() => {
                 vec![Command::PlaceEntity(EntityType::BasicBelt)]
@@ -1139,67 +1192,73 @@ impl VimParser {
             KeyCode::Char('3') if mods.is_empty() => {
                 vec![Command::PlaceEntity(EntityType::ExpressBelt)]
             }
-            // Category selection
-            KeyCode::Char('c') if mods.is_empty() => {
+
+            // --- Category browser (uppercase / Shift+letter) ---
+            KeyCode::Char('C') => {
                 self.insert_category = Some(InsertCategoryKind::Conveyors);
                 vec![]
             }
-            KeyCode::Char('p') if mods.is_empty() => {
-                self.insert_category = Some(InsertCategoryKind::Pipes);
-                vec![]
-            }
-            KeyCode::Char('s') if mods.is_empty() => {
+            KeyCode::Char('S') => {
                 self.insert_category = Some(InsertCategoryKind::ProcessingT1);
                 vec![]
             }
-            KeyCode::Char('a') if mods.is_empty() => {
+            KeyCode::Char('A') => {
                 self.insert_category = Some(InsertCategoryKind::ProcessingT2);
                 vec![]
             }
-            KeyCode::Char('q') if mods.is_empty() => {
+            KeyCode::Char('Q') => {
                 self.insert_category = Some(InsertCategoryKind::ProcessingT4);
                 vec![]
             }
-            KeyCode::Char('e') if mods.is_empty() => {
+            KeyCode::Char('E') => {
                 self.insert_category = Some(InsertCategoryKind::Energy);
                 vec![]
             }
-            KeyCode::Char('g') if mods.is_empty() => {
+            KeyCode::Char('G') => {
                 self.insert_category = Some(InsertCategoryKind::Storage);
                 vec![]
             }
-            KeyCode::Char('o') if mods.is_empty() => {
+            KeyCode::Char('O') => {
                 self.insert_category = Some(InsertCategoryKind::Logistics);
                 vec![]
             }
-            KeyCode::Char('t') if mods.is_empty() => {
+            KeyCode::Char('T') => {
                 self.insert_category = Some(InsertCategoryKind::Transport);
                 vec![]
             }
-            KeyCode::Char('r') if mods.is_empty() => {
+            KeyCode::Char('R') => {
                 self.insert_category = Some(InsertCategoryKind::Research);
                 vec![]
             }
-            KeyCode::Char('x') if mods.is_empty() => {
+            KeyCode::Char('X') => {
                 self.insert_category = Some(InsertCategoryKind::Waste);
                 vec![]
             }
-            KeyCode::Char('d') if mods.is_empty() => {
+            KeyCode::Char('D') => {
                 self.insert_category = Some(InsertCategoryKind::Utility);
                 vec![]
             }
-            KeyCode::Char('n') if mods.is_empty() => {
+            KeyCode::Char('N') => {
                 self.insert_category = Some(InsertCategoryKind::Circuit);
                 vec![]
             }
-            KeyCode::Char('b') if mods.is_empty() => {
+            KeyCode::Char('B') => {
                 self.insert_category = Some(InsertCategoryKind::Balancers);
                 vec![]
             }
-            KeyCode::Char('f') if mods.is_empty() => {
+            KeyCode::Char('F') => {
                 self.insert_category = Some(InsertCategoryKind::FluidExtras);
                 vec![]
             }
+            KeyCode::Char('P') => {
+                self.insert_category = Some(InsertCategoryKind::Pipes);
+                vec![]
+            }
+            KeyCode::Char('U') => {
+                // Direct-place UndergroundExit (not a category)
+                vec![Command::PlaceEntity(EntityType::UndergroundExit)]
+            }
+
             _ => vec![],
         }
     }

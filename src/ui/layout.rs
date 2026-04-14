@@ -5,7 +5,7 @@ pub const MIN_TERMINAL_WIDTH: u16 = 80;
 pub const MIN_TERMINAL_HEIGHT: u16 = 24;
 
 /// Sidebar width in columns.
-const SIDEBAR_WIDTH: u16 = 16;
+const SIDEBAR_WIDTH: u16 = 20;
 
 /// Tutorial hint bar height in rows.
 const TUTORIAL_BAR_HEIGHT: u16 = 3;

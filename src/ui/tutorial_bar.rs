@@ -23,18 +23,18 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
         return;
     }
 
-    let style = Style::default().fg(Color::White).bg(TUTORIAL_BG);
+    let style = Style::default().fg(Color::Rgb(200, 200, 210)).bg(TUTORIAL_BG);
     let bold = style.add_modifier(Modifier::BOLD);
     let title_style = Style::default()
-        .fg(Color::Yellow)
+        .fg(Color::Rgb(80, 200, 255))
         .bg(TUTORIAL_BG)
         .add_modifier(Modifier::BOLD);
     let goal_style = Style::default()
-        .fg(Color::Green)
+        .fg(Color::Rgb(255, 220, 60))
         .bg(TUTORIAL_BG)
         .add_modifier(Modifier::BOLD);
     let progress_style = Style::default()
-        .fg(Color::Cyan)
+        .fg(Color::Rgb(80, 255, 120))
         .bg(TUTORIAL_BG)
         .add_modifier(Modifier::BOLD);
 
@@ -70,11 +70,11 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
         let hint_text = hints::get_hint(level, tut.current_hint_index)
             .unwrap_or("Explore the level!");
         let hint_style = Style::default()
-            .fg(Color::Magenta)
+            .fg(Color::Rgb(200, 160, 80))
             .bg(TUTORIAL_BG)
             .add_modifier(Modifier::BOLD);
         let counter_style = Style::default()
-            .fg(Color::DarkGray)
+            .fg(Color::Rgb(80, 80, 100))
             .bg(TUTORIAL_BG);
         let counter = if num_hints > 1 {
             format!("({}/{}) ", tut.current_hint_index + 1, num_hints)
@@ -93,82 +93,102 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
     frame.render_widget(paragraph, area);
 }
 
-/// Build colored legend spans showing what entity glyphs mean.
-/// Early levels show entity symbols; later levels show key commands.
+/// Build colored legend spans showing key-action mappings for the current level.
+/// Uses gold for keys and white for descriptions.
 fn entity_legend_spans(level: usize) -> Vec<Span<'static>> {
     let bg = TUTORIAL_BG;
-    let label = |text: &str| -> Span<'static> {
+    let key_color = Color::Rgb(255, 200, 80);
+    let desc_color = Color::White;
+
+    let k = |text: &str| -> Span<'static> {
         Span::styled(
             text.to_string(),
-            Style::default().fg(Color::White).bg(bg),
-        )
-    };
-    let glyph = |ch: &str, color: Color| -> Span<'static> {
-        Span::styled(
-            ch.to_string(),
             Style::default()
-                .fg(color)
+                .fg(key_color)
                 .bg(bg)
                 .add_modifier(Modifier::BOLD),
+        )
+    };
+    let d = |text: &str| -> Span<'static> {
+        Span::styled(
+            text.to_string(),
+            Style::default().fg(desc_color).bg(bg),
         )
     };
 
     match level {
         1 => vec![
-            glyph("O", Color::Rgb(139, 119, 42)),
-            label("=Ore  "),
-            glyph("\u{2192}", Color::White),
-            label("=Conveyor  "),
-            glyph("S", Color::Red),
-            label("=Smelter  "),
-            glyph("B", Color::Green),
-            label("=Output Bin"),
+            k("hjkl"), d("=Move  "),
+            k("5l"), d("=Move 5 right  "),
+            k("0"), d("/"), k("$"), d("=Line start/end  "),
+            k("gg"), d("/"), k("G"), d("=Top/Bottom"),
         ],
-        2 | 3 => vec![
-            glyph("O", Color::Rgb(139, 119, 42)),
-            label("=Ore  "),
-            glyph("\u{2192}", Color::White),
-            label("=Conveyor  "),
-            glyph("S", Color::Red),
-            label("=Smelter  "),
-            glyph("B", Color::Green),
-            label("=Bin  "),
-            glyph("i", Color::Rgb(100, 220, 100)),
-            label("=Enter Insert mode"),
+        2 => vec![
+            k("i"), d("=Insert mode  "),
+            k("c"), d("=Place belt  "),
+            k("Esc"), d("=Back to Normal  "),
+            k("hjkl"), d("=Move (insert)"),
+        ],
+        3 => vec![
+            k("c"), d("=Belt  "),
+            k("s"), d("=Smelter (3x3)  "),
+            k("k"), d("/"), k("j"), d("=Up/Down (align rows)  "),
+            k("Arrows"), d("=Set facing"),
         ],
         4 => vec![
-            glyph("O", Color::Rgb(139, 119, 42)),
-            label("=Ore  "),
-            glyph("S", Color::Red),
-            label("=Smelter  "),
-            glyph("A", Color::Cyan),
-            label("=Assembler  "),
-            glyph("B", Color::Green),
-            label("=Bin"),
+            k("c"), d("=Belt  "),
+            k("s"), d("=Smelter  "),
+            k("a"), d("=Assembler (3x4)  "),
+            k("Arrows"), d("=Turn belts"),
         ],
         5 => vec![
-            label("x=Delete  d+motion=Delete range  ~=Rotate  i=Insert mode"),
+            k("~"), d("=Rotate CW  "),
+            k("x"), d("=Delete  "),
+            k("d"), d("+motion=Range delete  "),
+            k("i"), d("=Insert"),
         ],
-        6 | 7 => vec![
-            label("yy=Copy row  p=Paste  \"a=Use register a"),
+        6 => vec![
+            k("yy"), d("=Copy row  "),
+            k("p"), d("=Paste  "),
+            k("j"), d("=Move down  "),
+            k("Esc"), d("=Normal mode"),
+        ],
+        7 => vec![
+            k("\"a"), d("=Select register a  "),
+            k("2yy"), d("=Copy 2 rows  "),
+            k("p"), d("=Paste from register"),
         ],
         8 => vec![
-            label("Ctrl-v=Block select  y=Copy  p=Paste"),
+            k("Ctrl-v"), d("=Visual Block  "),
+            k("y"), d("=Copy block  "),
+            k("p"), d("=Paste block"),
         ],
         9 => vec![
-            label("f<c>=Find entity  /=Search  %=Follow connection"),
+            k("fs"), d("=Find smelter  "),
+            k("fb"), d("=Find bin  "),
+            k("/"), d("=Search  "),
+            k("%"), d("=Follow chain"),
         ],
         10 => vec![
-            label("qa=Record macro  q=Stop  @a=Replay  4@a=Replay 4x"),
+            k("qa"), d("=Record macro  "),
+            k("q"), d("=Stop  "),
+            k("@a"), d("=Replay  "),
+            k("4@a"), d("=Replay 4x"),
         ],
         11 => vec![
-            label("~=Rotate entity  .=Repeat last action"),
+            k("~"), d("=Rotate CW  "),
+            k("."), d("=Repeat last edit  "),
+            k("l"), d("=Move right"),
         ],
         12 => vec![
-            label("ma=Set mark a  'a=Jump to mark a"),
+            k("ma"), d("=Set mark a  "),
+            k("'a"), d("=Jump to mark a  "),
+            k("mb"), d("/"), k("mc"), d("/"), k("md"), d("=More marks"),
         ],
         13 => vec![
-            label("Ctrl-w v=V-split  Ctrl-w s=H-split  Ctrl-w h/j/k/l=Switch"),
+            k("Ctrl-w v"), d("=V-split  "),
+            k("Ctrl-w s"), d("=H-split  "),
+            k("Ctrl-w h/l"), d("=Switch panes"),
         ],
         _ => vec![],
     }

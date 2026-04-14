@@ -6,89 +6,80 @@ use super::config::{CompletionCondition, LevelConfig, LevelEntity};
 pub fn config() -> LevelConfig {
     let mut entities = Vec::new();
 
-    // Ore deposit
+    // OreDeposit (3×2) at (2,7): output port at (4,8)
     entities.push(LevelEntity {
-        x: 1,
-        y: 5,
+        x: 2, y: 7,
         entity_type: EntityType::OreDeposit,
         facing: Facing::Right,
         player_placed: false,
     });
 
-    // Output bin
+    // OutputBin (3×2) at (44,7): input port at (44,8)
     entities.push(LevelEntity {
-        x: 23,
-        y: 5,
+        x: 44, y: 7,
         entity_type: EntityType::OutputBin,
         facing: Facing::Right,
         player_placed: false,
     });
 
-    // Some correct conveyors
-    for x in 2..=4 {
+    // Correct conveyors at y=8
+    for x in 5..=9 {
         entities.push(LevelEntity {
-            x,
-            y: 5,
+            x, y: 8,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
     }
 
-    // Wrong-facing conveyors (Left instead of Right)
+    // Wrong-facing conveyors
     entities.push(LevelEntity {
-        x: 5,
-        y: 5,
+        x: 10, y: 8,
         entity_type: EntityType::BasicBelt,
         facing: Facing::Left,
         player_placed: false,
     });
     entities.push(LevelEntity {
-        x: 6,
-        y: 5,
+        x: 11, y: 8,
         entity_type: EntityType::BasicBelt,
         facing: Facing::Up,
         player_placed: false,
     });
 
-    // Gap at x=7 (missing conveyor)
+    // Gap at x=12
 
-    // Smelter facing wrong direction
+    // Smelter (3×3) at (13,7) facing Up (wrong! should be Right)
     entities.push(LevelEntity {
-        x: 8,
-        y: 5,
+        x: 13, y: 7,
         entity_type: EntityType::Smelter,
         facing: Facing::Up,
         player_placed: false,
     });
 
-    // More wrong-facing conveyors after smelter area
+    // Wrong-facing conveyor after smelter
     entities.push(LevelEntity {
-        x: 9,
-        y: 5,
+        x: 16, y: 8,
         entity_type: EntityType::BasicBelt,
         facing: Facing::Left,
         player_placed: false,
     });
 
-    // Some correct conveyors further down
-    for x in 10..=14 {
+    // Correct conveyors
+    for x in 17..=27 {
         entities.push(LevelEntity {
-            x,
-            y: 5,
+            x, y: 8,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
     }
 
-    // Gap at x=15..16
+    // Gap at x=28..30
 
-    // More correct conveyors at the end
-    for x in 17..=22 {
+    // More correct conveyors
+    for x in 31..=43 {
         entities.push(LevelEntity {
-            x,
-            y: 5,
+            x, y: 8,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
@@ -98,16 +89,16 @@ pub fn config() -> LevelConfig {
     LevelConfig {
         number: 5,
         name: "Demolish & Rebuild",
-        map_width: 25,
-        map_height: 10,
+        map_width: 48,
+        map_height: 18,
         entities,
-        objective: "Fix the broken factory using d, x. Deliver 5 ingots.",
+        objective: "Fix the broken factory: rotate, delete, and fill gaps. Deliver 5 ingots.",
         hints: vec![
-            "Use x to delete the entity under the cursor.",
-            "Use d followed by a motion to delete a range.",
-            "Delete wrong-facing conveyors and replace them.",
-            "Fix the smelter by deleting it and placing a new one facing Right.",
-            "Fill in any gaps with new conveyors.",
+            "This factory is broken! Wrong-facing belts, a rotated smelter, and gaps in the line.",
+            "In Normal mode, move onto an entity and press ~ to rotate it clockwise.",
+            "Use ~ on the smelter to fix its facing. Use ~ on wrong-facing belts too!",
+            "Press x to delete the entity under the cursor. Use d+motion for ranges (d3l = 3 right).",
+            "Fill gaps: press i to insert, c for belts. Fix everything and deliver 5 ingots!",
         ],
         allowed_commands: None,
         completion: CompletionCondition::DeliverIngots(5),

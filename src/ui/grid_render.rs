@@ -46,9 +46,9 @@ pub fn render_grid(frame: &mut Frame, area: Rect, app: &AppState, viewport: &Vie
                 break;
             }
 
-            let cell0_x = area.x + screen_col_tile * 2;
+            let cell0_x = area.x + viewport.pad_left + screen_col_tile * 2;
             let cell1_x = cell0_x + 1;
-            let cell_y = area.y + screen_row;
+            let cell_y = area.y + viewport.pad_top + screen_row;
 
             if cell1_x >= area.x + area.width || cell_y >= area.y + area.height {
                 break;
@@ -61,12 +61,17 @@ pub fn render_grid(frame: &mut Frame, area: Rect, app: &AppState, viewport: &Vie
                 Some(info) => {
                     // Get 2-char art for this tile
                     let [art0, art1] =
-                        glyphs::entity_art(info.entity_type, info.facing, info.tile_index);
+                        glyphs::entity_art(info.entity_type, info.facing, info.tile_row, info.tile_col);
 
-                    // Determine machine state for styling
+                    // Determine machine state for styling — use belt_style for belts
                     let state = info.machine_state;
-                    let base_style =
-                        glyphs::entity_style_for_state(info.entity_type, state, frame_counter);
+                    let base_style = if matches!(info.entity_type,
+                        EntityType::BasicBelt | EntityType::FastBelt | EntityType::ExpressBelt)
+                    {
+                        glyphs::belt_style(info.entity_type)
+                    } else {
+                        glyphs::entity_style_for_state(info.entity_type, state, frame_counter)
+                    };
 
                     // Column 1: processing indicator > resource > art character
                     let (g1, s1) = if let Some(proc_char) = info.processing_char {
@@ -129,7 +134,8 @@ pub fn render_grid(frame: &mut Frame, area: Rect, app: &AppState, viewport: &Vie
 struct TileEntityInfo {
     entity_type: EntityType,
     facing: Facing,
-    tile_index: usize,
+    tile_row: usize,
+    tile_col: usize,
     machine_state: MachineState,
     /// Processing countdown character (only on the center/anchor tile).
     processing_char: Option<char>,
@@ -141,7 +147,7 @@ fn resolve_tile_entity(app: &AppState, map_x: usize, map_y: usize) -> Option<Til
     let ent = app.map.entity_at(map_x, map_y)?;
 
     // Check if this tile is a secondary tile of a multi-tile building
-    let (anchor_ent, tile_index) =
+    let (anchor_ent, tile_row, tile_col) =
         if let Ok(pob) = app.world.get::<&PartOfBuilding>(ent) {
             let anchor = pob.anchor;
             let anchor_pos = app
@@ -159,11 +165,11 @@ fn resolve_tile_entity(app: &AppState, map_x: usize, map_y: usize) -> Option<Til
                 .get::<&MultiTile>(anchor)
                 .map(|m| (m.width, m.height))
                 .unwrap_or((1, 1));
-            let idx =
-                compute_tile_index(anchor_pos.0, anchor_pos.1, map_x, map_y, anchor_facing, w, h);
-            (anchor, idx)
+            let (tr, tc) =
+                compute_tile_coords(anchor_pos.0, anchor_pos.1, map_x, map_y, anchor_facing, w, h);
+            (anchor, tr, tc)
         } else {
-            (ent, 0)
+            (ent, 0, 0)
         };
 
     let entity_type = app
@@ -184,8 +190,9 @@ fn resolve_tile_entity(app: &AppState, map_x: usize, map_y: usize) -> Option<Til
     {
         if proc.is_processing() {
             let art = glyphs::building_art(entity_type);
-            let center = art.rows.len() / 2;
-            let indicator = if tile_index == center {
+            let center_row = art.height / 2;
+            let center_col = art.width / 2;
+            let indicator = if tile_row == center_row && tile_col == center_col {
                 glyphs::processing_indicator(entity_type, &proc)
             } else {
                 None
@@ -201,28 +208,32 @@ fn resolve_tile_entity(app: &AppState, map_x: usize, map_y: usize) -> Option<Til
     Some(TileEntityInfo {
         entity_type,
         facing,
-        tile_index,
+        tile_row,
+        tile_col,
         machine_state,
         processing_char,
     })
 }
 
-/// Compute the tile index (art row) for a tile of a multi-tile building.
+/// Compute the 2D tile coordinates (row, col) for a tile of a multi-tile building.
 ///
-/// Given the anchor position, the tile position, the facing, and the building footprint size,
-/// returns which art row this tile corresponds to.
-fn compute_tile_index(
+/// Given the anchor position, the tile position, the facing, and the rotated footprint size,
+/// returns which (row, col) this tile corresponds to in screen space.
+/// The row/col here are relative to the anchor in the rotated coordinate system.
+fn compute_tile_coords(
     ax: usize, ay: usize,
     tx: usize, ty: usize,
-    facing: Facing,
-    w: usize, h: usize,
-) -> usize {
-    match facing {
-        Facing::Right => ty.saturating_sub(ay),
-        Facing::Down => (ax + w).saturating_sub(1).saturating_sub(tx),
-        Facing::Left => (ay + h).saturating_sub(1).saturating_sub(ty),
-        Facing::Up => tx.saturating_sub(ax),
-    }
+    _facing: Facing,
+    _w: usize, _h: usize,
+) -> (usize, usize) {
+    // In screen space, the anchor is always at (0, 0) of the rotated footprint.
+    // dx = tx - ax (column offset), dy = ty - ay (row offset)
+    let dx = tx.saturating_sub(ax);
+    let dy = ty.saturating_sub(ay);
+    // Screen row = dy, screen col = dx
+    // These are in the rotated coordinate system; the art lookup will
+    // inverse-rotate them via rotated_art_coords in entity_art().
+    (dy, dx)
 }
 
 // ---------------------------------------------------------------------------

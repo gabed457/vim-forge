@@ -6,30 +6,27 @@ use super::config::{CompletionCondition, LevelConfig, LevelEntity};
 pub fn config() -> LevelConfig {
     let mut entities = Vec::new();
 
-    // Ore deposit at (1,7)
+    // OreDeposit (3×2) at (3,9): output at (5,10)
     entities.push(LevelEntity {
-        x: 1,
-        y: 7,
+        x: 3, y: 9,
         entity_type: EntityType::OreDeposit,
         facing: Facing::Right,
         player_placed: false,
     });
 
-    // 15 conveyors at y=7, x=2..16, all facing Up (should face Right)
-    for x in 2..=16 {
+    // 22 conveyors at y=10, x=6..27, all facing Up (should face Right)
+    for x in 6..=27 {
         entities.push(LevelEntity {
-            x,
-            y: 7,
+            x, y: 10,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Up,
             player_placed: false,
         });
     }
 
-    // Output bin at (18,7)
+    // OutputBin (3×2) at (28,9): input at (28,10)
     entities.push(LevelEntity {
-        x: 18,
-        y: 7,
+        x: 28, y: 9,
         entity_type: EntityType::OutputBin,
         facing: Facing::Right,
         player_placed: false,
@@ -38,16 +35,16 @@ pub fn config() -> LevelConfig {
     LevelConfig {
         number: 11,
         name: "The Dot",
-        map_width: 30,
-        map_height: 15,
+        map_width: 36,
+        map_height: 22,
         entities,
-        objective: "Use ~ and . to fix all conveyors.",
+        objective: "Rotate all 22 belts from Up to Right using ~ and . (dot repeat).",
         hints: vec![
-            "The ~ key rotates the entity under the cursor clockwise.",
-            "Press ~ on a conveyor facing Up to rotate it to Right.",
-            "The . key repeats your last action.",
-            "Move to the next conveyor with l, then press . to rotate it too.",
-            "This is much faster than re-placing each conveyor!",
+            "All 22 belts face Up but should face Right. The ~ key rotates clockwise: Up -> Right.",
+            "Move onto the first belt (row 10, col 6) and press ~ to rotate it.",
+            "Press . (dot) to repeat your last edit. The dot command replays the previous change!",
+            "Move right with l, then press . to rotate the next belt. Repeat: l then . across the row.",
+            "The pattern: ~ on the first belt, then l . l . l . ... Fix all 22 in seconds!",
         ],
         allowed_commands: None,
         completion: CompletionCondition::Custom("all_conveyors_facing_right".to_string()),

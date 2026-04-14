@@ -25,11 +25,12 @@ use crate::resources::{Facing, Resource};
 pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     let block = Block::default()
         .borders(Borders::LEFT)
-        .border_style(Style::default().fg(Color::Rgb(60, 60, 70)))
+        .border_style(Style::default().fg(Color::Rgb(40, 50, 65)))
+        .style(Style::default().bg(Color::Rgb(14, 17, 22)))
         .title(Span::styled(
             " VimForge ",
             Style::default()
-                .fg(Color::Rgb(80, 200, 220))
+                .fg(Color::Rgb(255, 200, 60))
                 .add_modifier(Modifier::BOLD),
         ));
 
@@ -189,12 +190,14 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
 
             // Show ASCII art preview (static, all tile rows)
             let art = glyphs::building_art(entity_type);
-            for idx in 0..art.rows.len() {
-                let [c0, c1] = glyphs::entity_art(entity_type, facing, idx);
-                lines.push(Line::from(Span::styled(
-                    format!(" {}{}", c0, c1),
-                    fg_style,
-                )));
+            for row in 0..art.height {
+                let mut row_str = String::from(" ");
+                for col in 0..art.width {
+                    let [c0, c1] = glyphs::entity_art(entity_type, facing, row, col);
+                    row_str.push(c0);
+                    row_str.push(c1);
+                }
+                lines.push(Line::from(Span::styled(row_str, fg_style)));
             }
         }
     }

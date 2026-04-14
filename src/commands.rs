@@ -195,6 +195,7 @@ pub enum Command {
     ReplaceEntity(EntityType),
     DeleteUnderCursor(usize),
     ToggleFacing,
+    RotateEntityUnderCursor,
 
     // Undo/Redo
     Undo,

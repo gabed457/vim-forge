@@ -127,6 +127,24 @@ fn test_insert_quick_place() {
     let mut parser = VimParser::new();
     parser.handle_key_event(key('i'));
 
+    // Quick-place: c → BasicBelt
+    let cmds = parser.handle_key_event(key('c'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::BasicBelt))));
+
+    // Quick-place: s → Smelter
+    let cmds = parser.handle_key_event(key('s'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::Smelter))));
+
+    // Quick-place: a → Assembler
+    let cmds = parser.handle_key_event(key('a'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::Assembler))));
+
     // Quick-place: w → Wall
     let cmds = parser.handle_key_event(key('w'));
     assert!(cmds
@@ -145,23 +163,24 @@ fn test_insert_category_place() {
     let mut parser = VimParser::new();
     parser.handle_key_event(key('i'));
 
-    // Category: s (ProcessingT1) then s (Smelter)
-    let cmds = parser.handle_key_event(key('s'));
-    assert!(cmds.is_empty()); // category selected, no placement yet
+    // Shift+C → Conveyors category (no placement yet)
+    let cmds = parser.handle_key_event(key_shift('C'));
+    assert!(cmds.is_empty()); // category selected
+
+    // Then 1 → BasicBelt
+    let cmds = parser.handle_key_event(key('1'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::BasicBelt))));
+
+    // Shift+S → ProcessingT1 category, then s → Smelter
+    let cmds = parser.handle_key_event(key_shift('S'));
+    assert!(cmds.is_empty());
 
     let cmds = parser.handle_key_event(key('s'));
     assert!(cmds
         .iter()
         .any(|c| matches!(c, Command::PlaceEntity(EntityType::Smelter))));
-
-    // Category: c (Conveyors) then 1 (BasicBelt)
-    let cmds = parser.handle_key_event(key('c'));
-    assert!(cmds.is_empty()); // category selected
-
-    let cmds = parser.handle_key_event(key('1'));
-    assert!(cmds
-        .iter()
-        .any(|c| matches!(c, Command::PlaceEntity(EntityType::BasicBelt))));
 }
 
 #[test]
@@ -170,8 +189,8 @@ fn test_insert_category_esc_returns_to_stage1() {
     parser.handle_key_event(key('i'));
     assert_eq!(parser.mode, Mode::Insert);
 
-    // Enter a category
-    parser.handle_key_event(key('c'));
+    // Enter a category via Shift+C
+    parser.handle_key_event(key_shift('C'));
 
     // Esc in stage 2 → back to stage 1 (still insert mode)
     let cmds = parser.handle_key_event(key_esc());
@@ -265,10 +284,10 @@ fn test_3x_delete_three() {
 }
 
 #[test]
-fn test_toggle_facing() {
+fn test_tilde_rotate_entity_under_cursor() {
     let mut parser = VimParser::new();
     let cmds = parser.handle_key_event(key('~'));
-    assert_eq!(cmds[0], Command::ToggleFacing);
+    assert_eq!(cmds[0], Command::RotateEntityUnderCursor);
 }
 
 #[test]
@@ -323,4 +342,43 @@ fn test_ctrl_g_sidebar() {
     let mut parser = VimParser::new();
     let cmds = parser.handle_key_event(key_ctrl('g'));
     assert_eq!(cmds[0], Command::ToggleSidebar);
+}
+
+#[test]
+fn test_insert_c_direct_belt_multiple() {
+    // Multiple c presses in insert mode should each produce PlaceEntity(BasicBelt)
+    let mut parser = VimParser::new();
+    parser.handle_key_event(key('i'));
+
+    for _ in 0..5 {
+        let cmds = parser.handle_key_event(key('c'));
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0], Command::PlaceEntity(EntityType::BasicBelt));
+    }
+}
+
+#[test]
+fn test_insert_uppercase_u_underground_exit() {
+    let mut parser = VimParser::new();
+    parser.handle_key_event(key('i'));
+
+    let cmds = parser.handle_key_event(key_shift('U'));
+    assert!(cmds
+        .iter()
+        .any(|c| matches!(c, Command::PlaceEntity(EntityType::UndergroundExit))));
+}
+
+#[test]
+fn test_c_in_normal_mode_is_change_operator() {
+    // c in normal mode is still the Change operator, not belt placement
+    let mut parser = VimParser::new();
+    assert_eq!(parser.mode, Mode::Normal);
+
+    let cmds = parser.handle_key_event(key('c'));
+    assert!(cmds.is_empty()); // waiting for motion (operator pending)
+    assert_eq!(parser.mode, Mode::Normal); // still in normal mode, not insert
+
+    // c + w = Change + motion (operator applied to range)
+    let cmds = parser.handle_key_event(key('w'));
+    assert!(cmds.len() >= 1); // produces motion + operator commands
 }

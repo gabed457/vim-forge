@@ -7,68 +7,60 @@ pub fn config() -> LevelConfig {
     let mut entities = Vec::new();
 
     // Top-left factory producing ingots
+    // Top ore line (belt_y=3)
     entities.push(LevelEntity {
-        x: 2,
-        y: 2,
+        x: 2, y: 2,
         entity_type: EntityType::OreDeposit,
         facing: Facing::Right,
         player_placed: false,
     });
-    entities.push(LevelEntity {
-        x: 2,
-        y: 4,
-        entity_type: EntityType::OreDeposit,
-        facing: Facing::Right,
-        player_placed: false,
-    });
-    // Conveyor chains for top ore line
-    for x in 3..=7 {
+    for x in 5..=9 {
         entities.push(LevelEntity {
-            x,
-            y: 2,
+            x, y: 3,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
     }
     entities.push(LevelEntity {
-        x: 8,
-        y: 2,
+        x: 10, y: 2,
         entity_type: EntityType::Smelter,
         facing: Facing::Right,
         player_placed: false,
     });
-    for x in 9..=14 {
+    for x in 13..=20 {
         entities.push(LevelEntity {
-            x,
-            y: 2,
+            x, y: 3,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
     }
 
-    // Conveyor chains for bottom ore line
-    for x in 3..=7 {
+    // Bottom ore line (belt_y=7)
+    entities.push(LevelEntity {
+        x: 2, y: 6,
+        entity_type: EntityType::OreDeposit,
+        facing: Facing::Right,
+        player_placed: false,
+    });
+    for x in 5..=9 {
         entities.push(LevelEntity {
-            x,
-            y: 4,
+            x, y: 7,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
         });
     }
     entities.push(LevelEntity {
-        x: 8,
-        y: 4,
+        x: 10, y: 6,
         entity_type: EntityType::Smelter,
         facing: Facing::Right,
         player_placed: false,
     });
-    for x in 9..=14 {
+    for x in 13..=20 {
         entities.push(LevelEntity {
-            x,
-            y: 4,
+            x, y: 7,
             entity_type: EntityType::BasicBelt,
             facing: Facing::Right,
             player_placed: false,
@@ -77,8 +69,7 @@ pub fn config() -> LevelConfig {
 
     // Bottom-right assembly area — output bin
     entities.push(LevelEntity {
-        x: 75,
-        y: 37,
+        x: 77, y: 37,
         entity_type: EntityType::OutputBin,
         facing: Facing::Right,
         player_placed: false,
@@ -87,16 +78,16 @@ pub fn config() -> LevelConfig {
     LevelConfig {
         number: 13,
         name: "Split View",
-        map_width: 80,
-        map_height: 40,
+        map_width: 82,
+        map_height: 42,
         entities,
-        objective: "Use split views, build cross-map conveyor chain.",
+        objective: "Use split views to see both ends of the map while building. 5 widgets.",
         hints: vec![
-            "Use :sp or :vs to split the view.",
-            "Use Ctrl-w + h/j/k/l to navigate between splits.",
-            "One split can show the ingot output area at top-left.",
-            "The other split shows the assembly area at bottom-right.",
-            "Build a long conveyor chain connecting the two areas with an assembler.",
+            "Ingot production is top-left, the Output Bin is bottom-right. You need to connect them!",
+            "Press Ctrl-w v to split vertically. Use Ctrl-w h/l to switch between left and right panes.",
+            "Keep one pane on the ingot lines (top-left) and the other on the bin area (bottom-right).",
+            "Build a long belt chain with direction changes (arrow keys in insert mode) to route between.",
+            "Place an assembler along the route to convert ingots to widgets. 5 widgets to win!",
         ],
         allowed_commands: None,
         completion: CompletionCondition::ProduceWidgets(5),

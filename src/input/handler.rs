@@ -566,21 +566,29 @@ impl InputState {
             Command::PlaceEntity(entity_type) => {
                 let facing = self.parser.insert_facing;
                 undo.push_snapshot(world, map, inventory);
-                let _ = map.place_entity_on_map(
+                if map.place_entity_on_map(
                     world,
                     self.cursor_x,
                     self.cursor_y,
                     entity_type,
                     facing,
                     true,
-                );
-                // Advance cursor in facing direction
-                let (dx, dy) = facing.offset();
-                let nx = self.cursor_x as isize + dx;
-                let ny = self.cursor_y as isize + dy;
-                if map.in_bounds_signed(nx, ny) {
-                    self.cursor_x = nx as usize;
-                    self.cursor_y = ny as usize;
+                ).is_some() {
+                    // Advance cursor past the footprint in the facing direction
+                    let fp = crate::map::multitile::building_footprint(entity_type)
+                        .rotate_to(facing);
+                    let (dx, dy) = facing.offset();
+                    // Advance by footprint size in the facing direction
+                    let advance = match facing {
+                        crate::resources::Facing::Right | crate::resources::Facing::Left => fp.width,
+                        crate::resources::Facing::Down | crate::resources::Facing::Up => fp.height,
+                    };
+                    let nx = self.cursor_x as isize + dx * advance as isize;
+                    let ny = self.cursor_y as isize + dy * advance as isize;
+                    if map.in_bounds_signed(nx, ny) {
+                        self.cursor_x = nx as usize;
+                        self.cursor_y = ny as usize;
+                    }
                 }
             }
             Command::SetInsertFacing(facing) => {
@@ -659,9 +667,9 @@ impl InputState {
                 if map.entity_at(self.cursor_x, self.cursor_y).is_some() {
                     undo.push_snapshot(world, map, inventory);
                     crate::vim::operators::collect_resources_at(world, map, inventory, self.cursor_x, self.cursor_y);
-                    map.remove_entity_from_map(world, self.cursor_x, self.cursor_y);
+                    map.remove_multitile_entity(world, self.cursor_x, self.cursor_y);
                     let facing = self.parser.insert_facing;
-                    let _ = map.place_entity_on_map(
+                    let _ = map.place_multitile_entity(
                         world,
                         self.cursor_x,
                         self.cursor_y,
@@ -677,12 +685,71 @@ impl InputState {
                     let x = self.cursor_x + i;
                     if x < map.width {
                         crate::vim::operators::collect_resources_at(world, map, inventory, x, self.cursor_y);
-                        map.remove_entity_from_map(world, x, self.cursor_y);
+                        map.remove_multitile_entity(world, x, self.cursor_y);
                     }
                 }
             }
             Command::ToggleFacing => {
                 self.parser.insert_facing = self.parser.insert_facing.rotate_cw();
+            }
+            Command::RotateEntityUnderCursor => {
+                if let Some(entity) = map.entity_at(self.cursor_x, self.cursor_y) {
+                    // Resolve to anchor if this is a secondary tile
+                    let anchor = if let Ok(pob) = world.get::<&crate::ecs::components::PartOfBuilding>(entity) {
+                        pob.anchor
+                    } else {
+                        entity
+                    };
+
+                    let entity_type = world.get::<&crate::ecs::components::EntityKind>(anchor)
+                        .map(|k| k.kind)
+                        .ok();
+                    let old_facing = world.get::<&crate::ecs::components::FacingComponent>(anchor)
+                        .map(|f| f.facing)
+                        .ok();
+                    let anchor_pos = world.get::<&crate::ecs::components::Position>(anchor)
+                        .map(|p| (p.x, p.y))
+                        .ok();
+
+                    if let (Some(et), Some(of), Some((ax, ay))) = (entity_type, old_facing, anchor_pos) {
+                        let new_facing = of.rotate_cw();
+                        let old_fp = crate::map::multitile::building_footprint(et).rotate_to(of);
+                        let new_fp = crate::map::multitile::building_footprint(et).rotate_to(new_facing);
+
+                        // Pre-check: verify rotated footprint fits
+                        let mut old_tiles = std::collections::HashSet::new();
+                        for fy in 0..old_fp.height {
+                            for fx in 0..old_fp.width {
+                                old_tiles.insert((ax + fx, ay + fy));
+                            }
+                        }
+                        let fits = (0..new_fp.height).all(|fy| {
+                            (0..new_fp.width).all(|fx| {
+                                let nx = ax + fx;
+                                let ny = ay + fy;
+                                map.in_bounds(nx, ny)
+                                    && (old_tiles.contains(&(nx, ny))
+                                        || map.entity_at(nx, ny).is_none())
+                            })
+                        });
+
+                        if fits {
+                            undo.push_snapshot(world, map, inventory);
+                            map.remove_multitile_entity(world, ax, ay);
+                            let _ = map.place_multitile_entity(world, ax, ay, et, new_facing, true);
+                        }
+                    }
+                } else {
+                    // No entity under cursor: fall back to rotating insert_facing
+                    self.parser.insert_facing = self.parser.insert_facing.rotate_cw();
+                }
+                // Set dot-repeat for ~
+                self.dot.last_edit = Some(crate::vim::dot::ReplayableCommand::NormalEdit {
+                    keystrokes: vec![crossterm::event::KeyEvent::new(
+                        crossterm::event::KeyCode::Char('~'),
+                        crossterm::event::KeyModifiers::NONE,
+                    )],
+                });
             }
 
             // Undo/Redo
@@ -978,7 +1045,7 @@ impl InputState {
             let x = self.cursor_x + entity.offset_x;
             let y = self.cursor_y + entity.offset_y;
             if map.in_bounds(x, y) && map.entity_at(x, y).is_none() {
-                let _ = map.place_entity_on_map(
+                let _ = map.place_multitile_entity(
                     world,
                     x,
                     y,

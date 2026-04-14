@@ -12,6 +12,9 @@ pub struct Viewport {
     pub width: usize,
     /// Number of visible tile rows.
     pub height: usize,
+    /// Terminal-cell padding for centering (applied in render_grid).
+    pub pad_left: u16,
+    pub pad_top: u16,
 }
 
 impl Viewport {
@@ -22,6 +25,8 @@ impl Viewport {
             offset_y: 0,
             width,
             height,
+            pad_left: 0,
+            pad_top: 0,
         }
     }
 
@@ -71,13 +76,20 @@ impl Viewport {
     pub fn clamp_to_map(&mut self, map_width: usize, map_height: usize) {
         if map_width > self.width {
             self.offset_x = self.offset_x.min(map_width - self.width);
+            self.pad_left = 0;
         } else {
             self.offset_x = 0;
+            // Center the map horizontally: each tile = 2 terminal columns
+            let map_term_width = map_width * 2;
+            let viewport_term_width = self.width * 2;
+            self.pad_left = ((viewport_term_width - map_term_width) / 2) as u16;
         }
         if map_height > self.height {
             self.offset_y = self.offset_y.min(map_height - self.height);
+            self.pad_top = 0;
         } else {
             self.offset_y = 0;
+            self.pad_top = ((self.height - map_height) / 2) as u16;
         }
     }
 
@@ -178,6 +190,8 @@ mod tests {
             offset_y: 5,
             width: 20,
             height: 10,
+            pad_left: 0,
+            pad_top: 0,
         };
         assert_eq!(vp.top_row(), 5);
         assert_eq!(vp.middle_row(30), 10);

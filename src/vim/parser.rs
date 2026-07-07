@@ -1546,13 +1546,19 @@ impl VimParser {
             KeyCode::Enter => {
                 let pattern = self.search_line.clone();
                 if !pattern.is_empty() {
-                    self.search_history.push(pattern);
+                    self.search_history.push(pattern.clone());
                 }
                 self.mode = Mode::Normal;
                 self.search_history_idx = None;
-                // The search was already initiated via EnterSearch; the handler uses
-                // search_line to perform the search when exiting search mode.
-                vec![Command::ExitToNormal]
+                self.search_line.clear();
+                if pattern.is_empty() {
+                    vec![Command::ExitToNormal]
+                } else {
+                    // Hand the typed pattern to the handler, which resolves it
+                    // to an entity type, collects matches, and jumps to the
+                    // first one (n/N then step through the same match list).
+                    vec![Command::ExecuteSearch(pattern, self.search_forward)]
+                }
             }
             KeyCode::Esc => {
                 self.mode = Mode::Normal;

@@ -33,6 +33,9 @@ pub enum CompletionCondition {
     Custom(String),
 }
 
+/// The pseudo-level number used for the freeplay sandbox map.
+pub const FREEPLAY_LEVEL: usize = 14;
+
 pub fn get_level(number: usize) -> Option<LevelConfig> {
     match number {
         1 => Some(super::level_01::config()),

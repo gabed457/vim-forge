@@ -113,6 +113,10 @@ impl TutorialState {
             self.edit_count = 0;
             Some(next)
         } else {
+            // Campaign finished: park on the freeplay pseudo-level so the
+            // session layer sees a completed final level and unlocks
+            // freeplay instead of restarting the last level forever.
+            self.current_level = crate::levels::config::FREEPLAY_LEVEL;
             None
         }
     }

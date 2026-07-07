@@ -793,6 +793,21 @@ impl InputState {
                 {
                     self.search
                         .set_pattern(entity_type.name(), forward);
+                    self.recompute_search_matches(world);
+                    self.jump_to_nearest_search_match(forward);
+                }
+            }
+            Command::ExecuteSearch(ref text, forward) => {
+                self.search.set_pattern(text, forward);
+                if self.search.pattern.is_none() {
+                    self.status_message = format!("Pattern not found: {text}");
+                } else {
+                    self.recompute_search_matches(world);
+                    if self.search.matches.is_empty() {
+                        self.status_message = format!("Pattern not found: {text}");
+                    } else {
+                        self.jump_to_nearest_search_match(forward);
+                    }
                 }
             }
 
@@ -968,6 +983,62 @@ impl InputState {
         let (cx, cy) = map.clamp(self.cursor_x, self.cursor_y);
         self.cursor_x = cx;
         self.cursor_y = cy;
+    }
+
+    /// Rebuild the search match list for the current search pattern:
+    /// the anchor tile of every entity of the matching type, in row-major
+    /// (reading) order.
+    fn recompute_search_matches(&mut self, world: &hecs::World) {
+        self.search.matches.clear();
+        self.search.current_match = 0;
+        let target = match self.search.pattern {
+            Some(t) => t,
+            None => return,
+        };
+        let mut found: Vec<(usize, usize)> = Vec::new();
+        for (entity, (pos, kind)) in world
+            .query::<(
+                &crate::ecs::components::Position,
+                &crate::ecs::components::EntityKind,
+            )>()
+            .iter()
+        {
+            if kind.kind == target
+                && world
+                    .get::<&crate::ecs::components::PartOfBuilding>(entity)
+                    .is_err()
+            {
+                found.push((pos.x, pos.y));
+            }
+        }
+        found.sort_by_key(|&(x, y)| (y, x));
+        self.search.matches = found;
+    }
+
+    /// Jump to the first match after (forward) or before (backward) the
+    /// cursor in row-major order, wrapping around — vim search semantics.
+    fn jump_to_nearest_search_match(&mut self, forward: bool) {
+        if self.search.matches.is_empty() {
+            return;
+        }
+        let key = (self.cursor_y, self.cursor_x);
+        let idx = if forward {
+            self.search
+                .matches
+                .iter()
+                .position(|&(x, y)| (y, x) > key)
+                .unwrap_or(0)
+        } else {
+            self.search
+                .matches
+                .iter()
+                .rposition(|&(x, y)| (y, x) < key)
+                .unwrap_or(self.search.matches.len() - 1)
+        };
+        self.search.current_match = idx;
+        let (x, y) = self.search.matches[idx];
+        self.cursor_x = x;
+        self.cursor_y = y;
     }
 
     /// Compute the visual selection range from the anchor to the cursor.

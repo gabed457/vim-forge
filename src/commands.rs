@@ -206,6 +206,8 @@ pub enum Command {
     SearchNext(usize),
     SearchPrev(usize),
     SearchWordUnderCursor(bool),
+    /// Execute a search typed on the `/` or `?` line: pattern text + forward flag.
+    ExecuteSearch(String, bool),
 
     // Splits
     SplitVertical,
@@ -257,4 +259,94 @@ pub enum Command {
     CmdCampaign,
     CmdPrestige,
     CmdSeed,
+}
+
+impl Command {
+    /// Whether this command mutates the factory (used for tutorial
+    /// edit-counting and move-budget scoring).
+    pub fn is_edit(&self) -> bool {
+        matches!(
+            self,
+            Command::Demolish(_)
+                | Command::Change(_)
+                | Command::RotateCW(_)
+                | Command::RotateCCW(_)
+                | Command::DemolishLine(_)
+                | Command::ChangeLine(_)
+                | Command::RotateCWLine(_)
+                | Command::RotateCCWLine(_)
+                | Command::Paste(..)
+                | Command::PlaceEntity(_)
+                | Command::ReplaceEntity(_)
+                | Command::DeleteUnderCursor(_)
+                | Command::RotateEntityUnderCursor
+                | Command::VisualOperator(_)
+                | Command::VisualPaste(_)
+                | Command::TextObjectOp(..)
+        )
+    }
+
+    /// Short name used by UseCommands tutorial objectives, if this command
+    /// corresponds to a recognizable vim action.
+    pub fn tutorial_name(&self) -> Option<&'static str> {
+        Some(match self {
+            Command::Move(crate::resources::Direction::Left, _) => "h",
+            Command::Move(crate::resources::Direction::Down, _) => "j",
+            Command::Move(crate::resources::Direction::Up, _) => "k",
+            Command::Move(crate::resources::Direction::Right, _) => "l",
+            Command::JumpNextEntity(_) => "w",
+            Command::JumpNextEntityBig(_) => "W",
+            Command::JumpPrevEntity(_) => "b",
+            Command::JumpPrevEntityBig(_) => "B",
+            Command::JumpEndCluster => "e",
+            Command::LineStart => "0",
+            Command::LineEnd => "$",
+            Command::FirstEntityInRow => "^",
+            Command::MapStart(_) => "gg",
+            Command::MapEnd(_) => "G",
+            Command::ViewportTop => "H",
+            Command::ViewportMiddle => "M",
+            Command::ViewportBottom => "L",
+            Command::FindEntity(_, _, true) => "f",
+            Command::FindEntity(_, _, false) => "F",
+            Command::TilEntity(_, _, true) => "t",
+            Command::TilEntity(_, _, false) => "T",
+            Command::RepeatFind(true) => ";",
+            Command::RepeatFind(false) => ",",
+            Command::NextParagraph(_) => "}",
+            Command::PrevParagraph(_) => "{",
+            Command::MatchConnection => "%",
+            Command::Demolish(_) | Command::DemolishLine(_) => "d",
+            Command::Yank(..) | Command::YankLine(..) => "y",
+            Command::Change(_) | Command::ChangeLine(_) => "c",
+            Command::RotateCW(_) | Command::RotateCWLine(_) => ">",
+            Command::RotateCCW(_) | Command::RotateCCWLine(_) => "<",
+            Command::Paste(_, _, false) => "p",
+            Command::Paste(_, _, true) => "P",
+            Command::SetMark(_) => "m",
+            Command::JumpMarkRow(_) => "'",
+            Command::JumpMarkExact(_) => "`",
+            Command::StartMacro(_) => "q",
+            Command::PlayMacro(..) | Command::PlayLastMacro(_) => "@",
+            Command::EnterInsert(_) => "i",
+            Command::EnterVisual => "v",
+            Command::EnterVisualLine => "V",
+            Command::EnterVisualBlock => "ctrl-v",
+            Command::DeleteUnderCursor(_) => "x",
+            Command::ReplaceEntity(_) => "r",
+            Command::RotateEntityUnderCursor => "~",
+            Command::Undo => "u",
+            Command::Redo => "ctrl-r",
+            Command::DotRepeat => ".",
+            Command::SearchNext(_) => "n",
+            Command::SearchPrev(_) => "N",
+            Command::SearchWordUnderCursor(true) => "*",
+            Command::SearchWordUnderCursor(false) => "#",
+            Command::EnterSearch(true) => "/",
+            Command::EnterSearch(false) => "?",
+            Command::SplitVertical => "ctrl-w v",
+            Command::SplitHorizontal => "ctrl-w s",
+            _ => return None,
+        })
+    }
 }

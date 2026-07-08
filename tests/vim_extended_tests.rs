@@ -1257,3 +1257,19 @@ fn dot_repeats_o_insert_session() {
     rig.feed("."); // repeat: open below from (0,1) -> place belt at (0,2)
     assert_eq!(rig.et(0, 2), Some(EntityType::BasicBelt));
 }
+
+#[test]
+fn cc_changes_line_and_enters_insert() {
+    let mut rig = Rig::new(20, 10);
+    for x in 3..=6 {
+        rig.place(x, 0, EntityType::BasicBelt, Facing::Right);
+    }
+    let cmds = rig.feed("cc");
+    assert!(
+        cmds.iter().any(|c| matches!(c, Command::ChangeLine(1))),
+        "cc should emit ChangeLine, got {cmds:?}"
+    );
+    assert_eq!(rig.input.parser.mode, Mode::Insert);
+    assert_eq!(rig.et(4, 0), None, "cc should clear the row");
+    rig.feed("<Esc>");
+}

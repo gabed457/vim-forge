@@ -507,12 +507,16 @@ impl VimParser {
             KeyCode::Char('d') if mods.is_empty() => self.handle_operator_key(Operator::Delete, 'd'),
             KeyCode::Char('y') if mods.is_empty() => self.handle_operator_key(Operator::Yank, 'y'),
             KeyCode::Char('c') if mods.is_empty() => {
-                if self.operator.is_none() {
-                    self.handle_operator_key(Operator::Change, 'c')
-                } else {
-                    // 'c' after operator: not valid, reset
-                    self.reset_pending();
-                    vec![]
+                match self.operator {
+                    // cc doubles to change-line; no operator starts change
+                    None | Some(Operator::Change) => {
+                        self.handle_operator_key(Operator::Change, 'c')
+                    }
+                    // 'c' after a different operator (dc, yc): invalid, reset
+                    Some(_) => {
+                        self.reset_pending();
+                        vec![]
+                    }
                 }
             }
             KeyCode::Char('>') => self.handle_operator_key(Operator::RotateCW, '>'),

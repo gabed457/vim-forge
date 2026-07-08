@@ -87,6 +87,10 @@ pub struct InputState {
     pub status_message: String,
     pub viewport_top: usize,
     pub viewport_height: usize,
+    /// Every command actually executed (including those triggered inside
+    /// macro playback and dot-repeat), drained by handle_key so the
+    /// session's tutorial tracker sees nested edits too.
+    executed_log: Vec<Command>,
     // Last find/til parameters for ; and , repeat
     pub last_find_entity: Option<EntityType>,
     pub last_find_forward: bool,
@@ -127,6 +131,7 @@ impl InputState {
             status_message: String::new(),
             viewport_top: 0,
             viewport_height: 24,
+            executed_log: Vec::new(),
             last_find_entity: None,
             last_find_forward: true,
             last_find_til: false,
@@ -157,7 +162,7 @@ impl InputState {
         self.dot_buffer.push(key);
 
         let commands = self.parser.handle_key_event(key);
-        let mut executed = Vec::new();
+        self.executed_log.clear();
 
         let mut saw_dot_repeat = false;
         for cmd in commands {
@@ -174,8 +179,7 @@ impl InputState {
             {
                 self.dot_pending_edit = true;
             }
-            self.execute_command(cmd.clone(), map, world, undo, inventory);
-            executed.push(cmd);
+            self.execute_command(cmd, map, world, undo, inventory);
         }
 
         // Decide whether the just-completed key sequence is a repeatable
@@ -196,7 +200,7 @@ impl InputState {
             self.dot_pending_edit = false;
         }
 
-        executed
+        std::mem::take(&mut self.executed_log)
     }
 
     /// Process a macro playback: feed stored keystrokes back through the parser.
@@ -240,6 +244,9 @@ impl InputState {
         undo: &mut UndoStack,
         inventory: &mut Inventory,
     ) {
+        // Log for the session's tutorial tracker; nested executions
+        // (macro playback, dot-repeat) land here too.
+        self.executed_log.push(cmd.clone());
         // A visual text-object selection is pinned until anything other
         // than a visual operation happens (any motion re-shapes the
         // selection back to anchor..cursor).

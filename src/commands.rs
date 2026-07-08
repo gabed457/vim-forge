@@ -528,8 +528,8 @@ impl Command {
             Command::JumpListBack(_) => "ctrl-o",
             Command::JumpListForward(_) => "ctrl-i",
             Command::VisualReplace(_) => "r",
-            Command::VisualBlockInsert(_, true) => "I",
-            Command::VisualBlockInsert(_, false) => "A",
+            Command::VisualBlockInsert(_, false) => "I",
+            Command::VisualBlockInsert(_, true) => "A",
             Command::VisualTextObject(true, _) => "i-object",
             Command::VisualTextObject(false, _) => "a-object",
             Command::TextObjectOp(op, ..) => match op {

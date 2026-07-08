@@ -121,3 +121,18 @@ fn save_and_load_round_trip_via_commands() {
 
     let _ = std::fs::remove_file(&path);
 }
+
+#[test]
+fn macro_replays_count_as_tutorial_edits() {
+    // Regression: @a used to bypass the tutorial edit counter entirely.
+    let mut s = session_at_level(2);
+    s.feed_keys("qaic<Esc>q"); // record: place one belt
+    let before = s.tutorial.as_ref().unwrap().edit_count;
+    s.feed_keys("3@a"); // replay 3 times = 3 more placements
+    let after = s.tutorial.as_ref().unwrap().edit_count;
+    assert_eq!(
+        after,
+        before + 3,
+        "macro replays must count their edits"
+    );
+}

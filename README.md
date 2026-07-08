@@ -80,8 +80,26 @@ g → Power         (c=coal gen, s=solar, w=wind, n=nuclear)
 :sell          — sell inventory
 :prestige     — prestige reset
 :level 3      — jump to level 3
-:help motion  — contextual help
+:help motions — contextual help (:h operators, :h objects, ...)
 ```
+
+## The Campaign — Learn Vim in 30 Levels
+
+The campaign is a complete vim course disguised as a factory crisis. Every level is
+proven completable by automated keystroke playthroughs of the exact solution its
+hints teach.
+
+| Act | Levels | You learn |
+|-----|--------|-----------|
+| I — Survival | 1–5 | `h j k l` counts `0 $ ^ gg G`, Insert mode, `x dd u Ctrl-r` |
+| II — Editing Power | 6–13 | `yy p`, named registers, `Ctrl-v`, `f % / n`, macros `q @`, `~ .`, marks, splits |
+| III — Motion Mastery | 14–16 | `w b e ge W B E`, `f t F T ; ,`, `{ } Ctrl-d Ctrl-u H M L zz zt zb` |
+| IV — Change Everything | 17–20 | `s S C D`, `c{motion}`, text objects `iw ip ib i" it`, `gU gu`, `Ctrl-a Ctrl-x`, `J`, `a A I o O` |
+| V — Fleet Command | 21–26 | visual counts & objects, block `I/A`, register append `"A`, black hole `"_`, jumplist `Ctrl-o Ctrl-i`, `? * #`, `:s :%s :g`, macro empires |
+| VI — Mastery | 27–30 | vim-golf edit budgets, the Broken Megafactory, and a 22-command Final Exam |
+
+Finish the Final Exam and **Freeplay** unlocks: an open world with research,
+contracts, markets, power, and pollution — the infinite game.
 
 ## Systems
 
@@ -89,15 +107,15 @@ g → Power         (c=coal gen, s=solar, w=wind, n=nuclear)
 
 **Contracts** — 6 tiers of delivery contracts. "Deliver 50 iron ingots" at Tier 1 becomes "Deliver 200 quantum processors" at Tier 6. Three active slots, five on the board, scaling rewards.
 
-**Research** — 57 technologies across 5 science pack tiers. Unlock faster belts, advanced buildings, nuclear power, logistics drones, infinite research for scaling bonuses.
+**Research** — 57 technologies across 5 science-pack tiers. Labs eat science packs off your belts and unlock the 64-recipe ladder tier by tier, up to the victory items.
 
-**Power Grid** — Coal generators, solar panels (affected by day/night cycle), wind turbines, geothermal, nuclear reactors, fusion. Grid uses BFS-connected components — isolated sections need their own generation.
+**Power Grid** — Fuel-burning generators (coal, gas, geothermal, nuclear, fusion) feed a global megawatt pool. Underpowered factories run at half speed; high-tier machines in Freeplay demand real supply.
 
-**Fluids** — Pressure-based pipe simulation. Pumps push fluid through networks, valves control flow, tanks buffer storage. Pipe junctions split flow proportionally.
+**Pollution** — Processing emits pollution; scrubbers and forests absorb it. Cross the threshold and cycle fines start eating your margins.
 
-**Day/Night** — 600-tick cycle. Solar output follows a curve. Weather events (storms, heat waves, cold snaps, acid rain) affect production and machine health.
+**Day/Night** — 600-tick cycle with a smooth 7-keyframe dawn/dusk/night tint over the whole map.
 
-**Scaling** — Difficulty ratchets up through 10 walls. Regulations tighten, waste thresholds shrink, operating costs climb. When you've hit the ceiling — **prestige**. Reset the map, keep permanent bonuses (speed, cost reduction, pollution resistance, capacity, luck, XP), climb higher.
+**Scaling & Prestige** — Contract tiers and difficulty scale with your deliveries; prestige points bank toward permanent bonuses.
 
 ## Running
 
@@ -121,7 +139,10 @@ cargo build --release
 cargo test
 ```
 
-137 tests covering the parser, simulation, economy, contracts, scaling, fluids, power, waste, multi-tile buildings, and recipes.
+340+ tests, including full keystroke playthroughs of all 30 campaign levels (the
+exact solutions the hints teach), a menu-to-freeplay chained campaign run, vim
+grammar coverage for every motion/operator/text-object, simulation wiring tests
+for research/economy/contracts/power, and TestBackend render snapshots.
 
 ## Architecture
 

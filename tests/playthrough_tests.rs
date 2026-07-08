@@ -189,3 +189,44 @@ fn contracts_popup_accepts_selected_contract() {
     );
     s.feed_keys("<Esc>");
 }
+
+#[test]
+fn level_1_accepts_any_tile_of_target_buildings() {
+    // Regression: NavigateToAll counted only building anchors; players
+    // standing ON the bin (but not its anchor tile) never completed.
+    let mut s = session_at_level(1);
+    s.feed_keys("5j32l"); // (32,5): bin body tile, anchor is (31,4)
+    s.feed_keys("10j");   // (32,15): second bin body tile
+    s.tick(1);
+    assert_eq!(
+        s.current_level(),
+        Some(2),
+        "standing on any bin tile should complete level 1"
+    );
+}
+
+#[test]
+fn failed_placement_reports_and_keeps_undo_clean() {
+    let mut s = session_at_level(2);
+    // (2,5) is the ore deposit — placement must fail loudly.
+    s.feed_keys("5j2li");
+    s.feed_keys("c");
+    assert!(
+        s.app.status_message.starts_with("Can't place"),
+        "failed placement must explain itself, got: {}",
+        s.app.status_message
+    );
+    s.feed_keys("<Esc>");
+    // Undo stack must not have accumulated junk: place one belt on a free
+    // tile, then a single u undoes it (not N failed-placement snapshots).
+    s.feed_keys("j3li");
+    s.feed_keys("c<Esc>");
+    use vimforge::resources::EntityType;
+    assert_eq!(s.entity_type_at(5, 6), Some(EntityType::BasicBelt));
+    s.feed_keys("u");
+    assert_eq!(
+        s.entity_type_at(5, 6),
+        None,
+        "one u must undo the one real placement"
+    );
+}

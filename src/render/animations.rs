@@ -154,9 +154,45 @@ impl AnimationManager {
         &self.flashes
     }
 
+    /// A subtle 0.0..1.0 shimmer wave for producing machines, phase-shifted
+    /// by tile position so large factories ripple rather than strobe.
+    pub fn shimmer(&self, x: usize, y: usize) -> f32 {
+        let phase = (self.frame_counter as usize + x * 3 + y * 5) % 24;
+        let t = phase as f32 / 24.0 * std::f32::consts::TAU;
+        t.sin() * 0.5 + 0.5
+    }
+
     /// Clear all animations.
     pub fn clear(&mut self) {
         self.flashes.clear();
         self.status_flash = None;
+    }
+}
+
+/// Spark/dust glyph shown on top of a flashing tile, derived purely from the
+/// flash state (rendering never mutates game state). Returns the glyph and
+/// its foreground color, fading with the remaining frames.
+pub fn flash_spark(kind: FlashKind, frames_remaining: u8) -> (char, (u8, u8, u8)) {
+    // 0.0 (dead) .. 1.0 (fresh)
+    let life = (frames_remaining.min(6)) as f32 / 6.0;
+    let fade = |c: (u8, u8, u8)| {
+        (
+            (c.0 as f32 * (0.45 + 0.55 * life)) as u8,
+            (c.1 as f32 * (0.45 + 0.55 * life)) as u8,
+            (c.2 as f32 * (0.45 + 0.55 * life)) as u8,
+        )
+    };
+    match kind {
+        FlashKind::Placement => {
+            let glyph = if frames_remaining >= 4 { '✦' } else { '·' };
+            (glyph, fade((150, 255, 150)))
+        }
+        FlashKind::Error => ('✗', fade((255, 90, 90))),
+        FlashKind::Demolition => {
+            let glyph = if frames_remaining >= 2 { '▒' } else { '░' };
+            (glyph, fade((190, 150, 100)))
+        }
+        FlashKind::ContractComplete => ('★', fade((255, 220, 80))),
+        FlashKind::ResearchComplete => ('◆', fade((190, 130, 255))),
     }
 }

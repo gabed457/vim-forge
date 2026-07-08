@@ -121,10 +121,12 @@ fn popup_content<'a>(kind: &PopupKind, app: &AppState) -> (&'static str, Vec<Lin
         PopupKind::Stats => stats_content(app),
         PopupKind::Registers => registers_content(app),
         PopupKind::Marks => marks_content(app),
-        PopupKind::Contracts => contracts_content(),
-        PopupKind::Market => market_content(),
-        PopupKind::Finance => finance_content(),
-        PopupKind::Research => research_content(),
+        PopupKind::Contracts => contracts_content(app),
+        PopupKind::Market => market_content(app),
+        PopupKind::Finance => finance_content(app),
+        PopupKind::Research => research_content(app),
+        PopupKind::Prestige => prestige_content(app),
+        PopupKind::Recipes => recipes_content(app),
     }
 }
 
@@ -332,91 +334,351 @@ fn marks_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
     ("Marks", lines)
 }
 
+fn dim<'a>(text: String) -> Line<'a> {
+    Line::from(Span::styled(text, Style::default().fg(Color::Rgb(140, 140, 140))))
+}
+
+fn plain<'a>(text: String) -> Line<'a> {
+    Line::from(Span::styled(text, Style::default().fg(Color::Rgb(210, 210, 210))))
+}
+
+fn good<'a>(text: String) -> Line<'a> {
+    Line::from(Span::styled(text, Style::default().fg(Color::Rgb(80, 220, 80))))
+}
+
 /// Contract board popup.
-fn contracts_content<'a>() -> (&'static str, Vec<Line<'a>>) {
+fn contracts_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
     let mut lines = Vec::new();
+    let board = &app.contract_board;
+    let tick = app.simulation.tick_count;
+
     lines.push(styled_header("Contract Board"));
+    lines.push(line_kv("Reputation", &format!("{}", board.reputation)));
+    lines.push(line_kv(
+        "Completed/Failed",
+        &format!("{} / {}", board.completed_count, board.failed_count),
+    ));
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "No contracts available yet.",
-        Style::default().fg(Color::Rgb(140, 140, 140)),
-    )));
+
+    lines.push(styled_header("Active Contracts"));
+    if board.active.is_empty() {
+        lines.push(dim("  (none — contracts auto-accept once you have".into()));
+        lines.push(dim("   delivered the requested resource before)".into()));
+    }
+    for c in &board.active {
+        lines.push(plain(format!("  {} [{}]", c.name, c.tier.name())));
+        for req in &c.requirements {
+            lines.push(dim(format!(
+                "    {:<20} {}/{}",
+                req.resource.name(),
+                req.delivered,
+                req.quantity
+            )));
+        }
+        let left = c.deadline.saturating_sub(tick);
+        lines.push(dim(format!(
+            "    reward ${}   deadline in {} ticks",
+            c.reward, left
+        )));
+    }
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "Contracts will appear as the economy system is wired in.",
-        Style::default().fg(Color::Rgb(90, 90, 100)),
-    )));
+
+    lines.push(styled_header("Available Contracts"));
+    if board.available.is_empty() {
+        lines.push(dim("  (a new batch is generated every 300 ticks)".into()));
+    }
+    for c in &board.available {
+        lines.push(plain(format!("  {} [{}]", c.name, c.tier.name())));
+        for req in &c.requirements {
+            lines.push(dim(format!(
+                "    {:<20} x{}",
+                req.resource.name(),
+                req.quantity
+            )));
+        }
+        lines.push(dim(format!("    reward ${}", c.reward)));
+    }
     ("Contracts", lines)
 }
 
-/// Market prices popup.
-fn market_content<'a>() -> (&'static str, Vec<Line<'a>>) {
+/// Market prices popup: live prices with trend arrows.
+fn market_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
+    use crate::resources::Resource;
     let mut lines = Vec::new();
     lines.push(styled_header("Resource Market"));
+    lines.push(dim("Output-bin deliveries sell at 80% of market price".into()));
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
         Span::styled(
-            format!("{:<22}", "Resource"),
+            format!("  {:<22}{:>8}{:>8}  ", "Resource", "Market", "Sell"),
             Style::default()
                 .fg(Color::Rgb(140, 140, 140))
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            "Price",
+            "Trend",
             Style::default()
                 .fg(Color::Rgb(140, 140, 140))
                 .add_modifier(Modifier::BOLD),
         ),
     ]));
-    // Show some base resource prices
-    let resources = [
-        ("Iron Ore", 1.0),
-        ("Copper Ore", 1.0),
-        ("Coal", 1.0),
-        ("Iron Ingot", 5.0),
-        ("Copper Ingot", 5.0),
-        ("Steel", 5.0),
-        ("Circuit Board", 25.0),
-        ("Processor", 100.0),
-        ("Quantum Processor", 500.0),
+
+    // Fixed ladder of key resources, plus anything the player has produced.
+    let mut shown: Vec<Resource> = vec![
+        Resource::IronOre,
+        Resource::CopperOre,
+        Resource::Coal,
+        Resource::IronIngot,
+        Resource::CopperIngot,
+        Resource::Steel,
+        Resource::CopperWire,
+        Resource::IronPlate,
+        Resource::CircuitBoard,
+        Resource::Gear,
+        Resource::SciencePack1,
+        Resource::Processor,
+        Resource::QuantumProcessor,
     ];
-    for (name, price) in &resources {
+    let mut extra: Vec<Resource> = app
+        .delivered_lifetime
+        .keys()
+        .copied()
+        .filter(|r| !shown.contains(r) && !r.is_waste())
+        .collect();
+    extra.sort_by_key(|r| r.name());
+    shown.extend(extra);
+
+    for r in shown {
+        let price = app.market.current_price(r);
+        if price <= 0.0 {
+            continue;
+        }
+        let sell = app.market.sell_price(r);
+        let dm = app.market.demand_modifier.get(&r).copied().unwrap_or(0.0);
+        let sp = app.market.supply_pressure.get(&r).copied().unwrap_or(0.0);
+        let (arrow, color) = if dm > 0.05 {
+            ('\u{2191}', Color::Rgb(80, 220, 80))
+        } else if dm < -0.05 || sp > 0.2 {
+            ('\u{2193}', Color::Rgb(220, 80, 80))
+        } else {
+            ('\u{2192}', Color::Rgb(160, 160, 160))
+        };
         lines.push(Line::from(vec![
             Span::styled(
-                format!("{:<22}", name),
-                Style::default().fg(Color::Rgb(200, 200, 200)),
+                format!("  {:<22}{:>8}{:>8}  ", r.name(), format!("${:.1}", price), format!("${:.1}", sell)),
+                Style::default().fg(Color::Rgb(210, 210, 210)),
             ),
-            Span::styled(
-                format!("${:.0}", price),
-                Style::default().fg(Color::Rgb(80, 220, 80)),
-            ),
+            Span::styled(arrow.to_string(), Style::default().fg(color)),
         ]));
     }
     ("Market", lines)
 }
 
 /// Finance overview popup.
-fn finance_content<'a>() -> (&'static str, Vec<Line<'a>>) {
+fn finance_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
     let mut lines = Vec::new();
+    let eco = &app.economy;
     lines.push(styled_header("Finance Overview"));
+    lines.push(line_kv("Cash", &format!("${}", eco.cash)));
+    lines.push(line_kv("Net worth", &format!("${}", eco.net_worth())));
+    lines.push(line_kv("Difficulty", eco.difficulty.name()));
+    lines.push(line_kv("Cycle", &format!("{}", eco.cycle)));
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "Finance tracking will be available once the economy is wired in.",
-        Style::default().fg(Color::Rgb(140, 140, 140)),
-    )));
+
+    lines.push(styled_header("Last Cycle"));
+    lines.push(good(format!("  Income (sales)       ${:.0}", app.income_last_cycle)));
+    for l in app.last_expense_report.summary_lines() {
+        lines.push(dim(l));
+    }
+    let net = app.income_last_cycle - app.last_expense_report.total;
+    lines.push(plain(format!("  {:<20} ${:.0}", "NET", net)));
+    lines.push(Line::from(""));
+
+    lines.push(styled_header("Debt"));
+    lines.push(line_kv("Outstanding", &format!("${}", app.loans.total_debt())));
+    lines.push(line_kv(
+        "Available credit",
+        &format!("${}", app.loans.available_credit),
+    ));
+    lines.push(line_kv(
+        "Credit rating",
+        &format!("{:.2}", eco.credit_rating),
+    ));
+    lines.push(Line::from(""));
+    lines.push(dim("  :loan takes a $5000 loan over 20 cycles".into()));
+    lines.push(Line::from(""));
+
+    lines.push(styled_header("Totals"));
+    lines.push(line_kv("Earned", &format!("${}", eco.total_earned)));
+    lines.push(line_kv("Spent", &format!("${}", eco.total_spent)));
     ("Finance", lines)
 }
 
 /// Research/tech tree popup.
-fn research_content<'a>() -> (&'static str, Vec<Line<'a>>) {
+fn research_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
+    use crate::research::tree::{get_all_techs, is_available};
     let mut lines = Vec::new();
-    lines.push(styled_header("Research Tree"));
+    let rs = &app.research;
+    let techs = get_all_techs();
+    let total = techs.iter().filter(|t| !t.is_infinite).count();
+
+    lines.push(styled_header("Research"));
+    lines.push(line_kv(
+        "Completed",
+        &format!("{} / {}", rs.completed.len(), total),
+    ));
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "Research will be available once the tech tree is wired in.",
-        Style::default().fg(Color::Rgb(140, 140, 140)),
-    )));
+
+    lines.push(styled_header("Current Research"));
+    match rs.current {
+        Some(id) => {
+            let tech = crate::research::tree::get_tech(id);
+            let frac = rs.progress_fraction();
+            let filled = (frac * 20.0) as usize;
+            let bar: String = "\u{2588}".repeat(filled) + &"\u{2591}".repeat(20 - filled.min(20));
+            lines.push(plain(format!("  {} (tier {})", tech.name, tech.tier)));
+            lines.push(Line::from(vec![
+                Span::styled("  ".to_string(), Style::default()),
+                Span::styled(bar, Style::default().fg(Color::Rgb(80, 200, 220))),
+                Span::styled(
+                    format!(" {:.0}%", frac * 100.0),
+                    Style::default().fg(Color::Rgb(210, 210, 210)),
+                ),
+            ]));
+            let cost: Vec<String> = tech
+                .science_cost
+                .iter()
+                .map(|(r, n)| format!("{} x{}", r.name(), n))
+                .collect();
+            lines.push(dim(format!("  needs: {}", cost.join(", "))));
+        }
+        None => lines.push(dim("  (idle — deliver science packs to a lab)".into())),
+    }
+    lines.push(Line::from(""));
+    lines.push(dim("Labs consume science packs delivered by belt.".into()));
+    lines.push(dim("The cheapest available tech is auto-selected;".into()));
+    lines.push(dim("finished techs unlock recipes and grant cash.".into()));
+    lines.push(Line::from(""));
+
+    for tier in 1..=5u8 {
+        lines.push(styled_header(&format!("Tier {}", tier)));
+        for tech in techs.iter().filter(|t| t.tier == tier && !t.is_infinite) {
+            let marker = if rs.completed.contains(&tech.id) {
+                ("[x]", Color::Rgb(80, 220, 80))
+            } else if rs.current == Some(tech.id) {
+                ("[>]", Color::Rgb(80, 200, 220))
+            } else if is_available(tech.id, &rs.completed) {
+                ("[ ]", Color::Rgb(210, 210, 210))
+            } else {
+                ("[-]", Color::Rgb(90, 90, 100))
+            };
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("  {} ", marker.0),
+                    Style::default().fg(marker.1),
+                ),
+                Span::styled(
+                    tech.name.to_string(),
+                    Style::default().fg(marker.1),
+                ),
+            ]));
+            // What it unlocks
+            let mut unlocks: Vec<String> = tech
+                .unlocks_buildings
+                .iter()
+                .map(|b| b.name().to_string())
+                .collect();
+            if !tech.unlocks_recipes.is_empty() {
+                unlocks.push(format!("{} recipe(s)", tech.unlocks_recipes.len()));
+            }
+            if tech.cash_grant > 0 {
+                unlocks.push(format!("${}", tech.cash_grant));
+            }
+            if !unlocks.is_empty() {
+                lines.push(dim(format!("        -> {}", unlocks.join(", "))));
+            }
+        }
+        lines.push(Line::from(""));
+    }
     ("Research", lines)
+}
+
+/// Prestige popup: what a prestige would currently grant.
+fn prestige_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
+    use crate::scaling::prestige::{prestige_cost, PrestigeBonus};
+    let mut lines = Vec::new();
+    let p = &app.prestige;
+    lines.push(styled_header("Prestige"));
+    lines.push(line_kv("Prestige level", &format!("{}", p.level)));
+    lines.push(line_kv("Points banked", &format!("{}", p.points)));
+    lines.push(Line::from(""));
+
+    let would_earn =
+        (app.economy.net_worth().max(0) as u64 / 1000) + app.scaling.level as u64 * 10;
+    lines.push(styled_header("If You Prestiged Now"));
+    lines.push(plain(format!("  +{} prestige points", would_earn)));
+    lines.push(dim(format!(
+        "  (net worth ${} / 1000 + scaling {} x 10)",
+        app.economy.net_worth().max(0),
+        app.scaling.level
+    )));
+    lines.push(Line::from(""));
+
+    lines.push(styled_header("Bonuses"));
+    for b in PrestigeBonus::all() {
+        let lvl = p.bonus_level(*b);
+        lines.push(plain(format!("  {:<24} lv{}", b.name(), lvl)));
+        lines.push(dim(format!(
+            "    {} (next: {} pts)",
+            b.description(),
+            prestige_cost(*b, lvl)
+        )));
+    }
+    lines.push(Line::from(""));
+    lines.push(dim("The actual factory reset is not wired yet:".into()));
+    lines.push(dim("prestige points accrue for a future update.".into()));
+    ("Prestige", lines)
+}
+
+/// Recipe book popup: every recipe grouped by building, with lock state.
+fn recipes_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
+    let mut lines = Vec::new();
+    lines.push(styled_header("Recipe Book"));
+    lines.push(dim("Locked recipes need research (see :research)".into()));
+    lines.push(Line::from(""));
+
+    let recipes = crate::ecs::recipes::all_recipes();
+    let mut current_building: Option<crate::resources::EntityType> = None;
+    for r in &recipes {
+        if current_building != Some(r.building) {
+            current_building = Some(r.building);
+            lines.push(styled_header(r.building.name()));
+        }
+        let unlocked = app.simulation.config.recipe_unlocked(r);
+        let ins: Vec<String> = r
+            .inputs
+            .iter()
+            .map(|i| format!("{} x{}", i.resource.name(), i.amount))
+            .collect();
+        let outs: Vec<String> = r
+            .outputs
+            .iter()
+            .map(|o| format!("{} x{}", o.resource.name(), o.amount))
+            .collect();
+        let text = format!(
+            "  {} {} -> {} ({}t)",
+            if unlocked { " " } else { "L" },
+            ins.join(" + "),
+            outs.join(" + "),
+            r.ticks
+        );
+        if unlocked {
+            lines.push(plain(text));
+        } else {
+            lines.push(dim(text));
+        }
+    }
+    ("Recipes", lines)
 }
 
 /// Helper to create a styled section header line. Uses Rgb.

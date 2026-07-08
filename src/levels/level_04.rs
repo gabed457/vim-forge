@@ -39,7 +39,7 @@ pub fn config() -> LevelConfig {
             "You need TWO ingot lines feeding one assembler. Start with the top deposit (row 5).",
             "Build each line like Level 3: belts (c), then k + s for smelter, then j + c for more belts.",
             "Place an assembler (a, 3x4). It takes TWO inputs on its left side, one row apart.",
-            "Use arrow keys in insert mode to change belt direction. Turn belts to route both lines in.",
+            "Belts accept items from behind and the SIDES, never head-on. Use Shift-J/K or arrows in insert mode to turn a line.",
             "Connect the assembler's right-side output to the bin with belts. 3 widgets to win!",
         ],
         allowed_commands: None,

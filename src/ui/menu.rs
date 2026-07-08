@@ -6,60 +6,33 @@ use ratatui::Frame;
 
 use crate::app::AppState;
 
-/// ASCII art lines for "VIM".
-const VIM_ART: [&str; 5] = [
-    " __     __ ___  __  __ ",
-    " \\ \\   / /|_ _||  \\/  |",
-    "  \\ \\ / /  | | | |\\/| |",
-    "   \\ V /   | | | |  | |",
-    "    \\_/   |___||_|  |_|",
+/// Hand-crafted figlet-style logotype: VIMFORGE on one line.
+const LOGO_ART: [&str; 5] = [
+    r"__     _____ __  __ _____ ___  ____   ____ _____",
+    r"\ \   / /_ _|  \/  |  ___/ _ \|  _ \ / ___| ____|",
+    r" \ \ / / | || |\/| | |_ | | | | |_) | |  _|  _|",
+    r"  \ V /  | || |  | |  _|| |_| |  _ <| |_| | |___",
+    r"   \_/  |___|_|  |_|_|   \___/|_| \_\\____|_____|",
 ];
 
-/// ASCII art lines for "FORGE".
-const FORGE_ART: [&str; 5] = [
-    " _____ ___  ____   ____ _____",
-    "|  ___/ _ \\|  _ \\ / ___| ____|",
-    "| |_ | | | | |_) | |  _|  _|  ",
-    "|  _|| |_| |  _ <| |_| | |___ ",
-    "|_|   \\___/|_| \\_\\\\____|_____|",
+/// Compact fallback logotype for narrow terminals (< 54 usable columns).
+const LOGO_SMALL: [&str; 2] = [
+    "V I M F O R G E",
+    "===============",
 ];
 
-/// Gradient for VIM: cyan to purple.
-fn vim_gradient(col: usize) -> Color {
-    // Interpolate from (80, 200, 220) to (160, 80, 220) over 23 chars
-    let t = (col as f64 / 22.0).min(1.0);
-    let r = (80.0 + 80.0 * t) as u8;
-    let g = (200.0 - 120.0 * t) as u8;
-    let b = 220u8;
-    Color::Rgb(r, g, b)
-}
+/// Total columns of the big logotype (for gradient span + centering).
+const LOGO_WIDTH: usize = 49;
 
-/// Gradient for FORGE: orange to gold.
-fn forge_gradient(col: usize) -> Color {
-    // Interpolate from (220, 120, 40) to (255, 200, 60) over 30 chars
-    let t = (col as f64 / 29.0).min(1.0);
-    let r = (220.0 + 35.0 * t).min(255.0) as u8;
-    let g = (120.0 + 80.0 * t) as u8;
-    let b = (40.0 + 20.0 * t) as u8;
+/// Two-tone logotype gradient: forge-cyan steel on the VIM half melting into
+/// ember gold across the FORGE half.
+fn logo_gradient(col: usize) -> Color {
+    let t = (col as f64 / (LOGO_WIDTH - 1) as f64).clamp(0.0, 1.0);
+    // Steel cyan (86, 205, 227) -> ember gold (255, 196, 64)
+    let r = (86.0 + (255.0 - 86.0) * t) as u8;
+    let g = (205.0 + (196.0 - 205.0) * t) as u8;
+    let b = (227.0 + (64.0 - 227.0) * t) as u8;
     Color::Rgb(r, g, b)
-}
-
-/// Build a line of ASCII art with per-character gradient coloring.
-fn gradient_line<'a>(text: &str, gradient_fn: fn(usize) -> Color) -> Line<'a> {
-    let spans: Vec<Span> = text
-        .chars()
-        .enumerate()
-        .map(|(i, ch)| {
-            let color = gradient_fn(i);
-            Span::styled(
-                String::from(ch),
-                Style::default()
-                    .fg(color)
-                    .add_modifier(Modifier::BOLD),
-            )
-        })
-        .collect();
-    Line::from(spans)
 }
 
 /// Render the main menu screen (centered box with ASCII art title and options).
@@ -75,8 +48,8 @@ pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(Color::Rgb(80, 200, 220)))
-        .style(Style::default().bg(Color::Rgb(15, 15, 28)));
+        .border_style(Style::default().fg(Color::Rgb(86, 205, 227)))
+        .style(Style::default().bg(Color::Rgb(14, 14, 26)));
 
     let inner = block.inner(menu_area);
     frame.render_widget(block, menu_area);
@@ -85,118 +58,149 @@ pub fn render_menu(frame: &mut Frame, frame_size: Rect, app: &AppState) {
         return;
     }
 
+    let width = inner.width as usize;
     let mut lines: Vec<Line> = Vec::new();
 
     lines.push(Line::from(""));
 
-    // ASCII art title - VIM
-    for art_line in &VIM_ART {
-        lines.push(center_gradient_line(art_line, vim_gradient, inner.width as usize));
-    }
-
-    // ASCII art title - FORGE
-    for art_line in &FORGE_ART {
-        lines.push(center_gradient_line(art_line, forge_gradient, inner.width as usize));
+    // Logotype: big single-line VIMFORGE, or compact fallback when narrow.
+    if width >= LOGO_WIDTH + 1 {
+        for art_line in &LOGO_ART {
+            lines.push(center_gradient_line(art_line, LOGO_WIDTH, width));
+        }
+    } else {
+        for art_line in &LOGO_SMALL {
+            lines.push(center_gradient_line(art_line, LOGO_SMALL[0].len().max(2), width));
+        }
     }
 
     lines.push(Line::from(""));
+
+    // Tagline + version
     lines.push(Line::from(Span::styled(
-        center_text("A Vim-Grammar Factory Builder", inner.width as usize),
-        Style::default().fg(Color::Rgb(90, 90, 100)),
+        center_text("a  v i m - g r a m m a r  f a c t o r y", width),
+        Style::default()
+            .fg(Color::Rgb(140, 150, 170))
+            .add_modifier(Modifier::ITALIC),
+    )));
+    lines.push(Line::from(Span::styled(
+        center_text(concat!("v", env!("CARGO_PKG_VERSION")), width),
+        Style::default().fg(Color::Rgb(80, 85, 100)),
     )));
     lines.push(Line::from(""));
 
-    // Menu options
-    lines.push(menu_option("[1]", "Tutorial", true, inner.width as usize));
+    // Pulsing '>' accent cursor, vim-command style, driven by the frame counter.
+    let pulse = pulse_level(app.animations.frame_counter);
+
+    lines.push(menu_option(pulse, "[1]", "Tutorial", true, width));
     lines.push(Line::from(""));
-    lines.push(menu_option(
-        "[2]",
-        "Freeplay",
-        app.freeplay_unlocked,
-        inner.width as usize,
-    ));
+    lines.push(menu_option(pulse, "[2]", "Freeplay", app.freeplay_unlocked, width));
     lines.push(Line::from(""));
-    lines.push(menu_option(
-        "[3]",
-        "Load Save",
-        app.has_save,
-        inner.width as usize,
-    ));
+    lines.push(menu_option(pulse, "[3]", "Load Save", app.has_save, width));
     lines.push(Line::from(""));
-    lines.push(menu_option("[4]", "Quit", true, inner.width as usize));
+    lines.push(menu_option(pulse, "[4]", "Quit", true, width));
     lines.push(Line::from(""));
     lines.push(Line::from(""));
 
-    // Footer
+    // Footer: vim-style hint
     lines.push(Line::from(Span::styled(
-        center_text("Press a number key to select", inner.width as usize),
-        Style::default().fg(Color::Rgb(70, 70, 80)),
+        center_text(":press a number key to select", width),
+        Style::default().fg(Color::Rgb(90, 95, 110)),
     )));
 
     let paragraph = Paragraph::new(lines);
     frame.render_widget(paragraph, inner);
 }
 
+/// Pulse brightness 0.0..1.0 from the animation frame counter (~1s period).
+fn pulse_level(frame_counter: u32) -> f64 {
+    let phase = (frame_counter % 30) as f64 / 30.0 * std::f64::consts::TAU;
+    phase.sin() * 0.5 + 0.5
+}
+
 /// Compute the centered menu box area.
 fn menu_area(frame_size: Rect) -> Rect {
-    let menu_w = 50u16.min(frame_size.width.saturating_sub(4));
-    let menu_h = 28u16.min(frame_size.height.saturating_sub(2));
+    let menu_w = 60u16.min(frame_size.width.saturating_sub(2));
+    let menu_h = 26u16.min(frame_size.height);
     let x = (frame_size.width.saturating_sub(menu_w)) / 2 + frame_size.x;
     let y = (frame_size.height.saturating_sub(menu_h)) / 2 + frame_size.y;
     Rect::new(x, y, menu_w, menu_h)
 }
 
-/// Center a gradient line within a width.
-fn center_gradient_line<'a>(
-    text: &str,
-    gradient_fn: fn(usize) -> Color,
-    width: usize,
-) -> Line<'a> {
-    let text_len = text.len();
-    if text_len >= width {
-        return gradient_line(text, gradient_fn);
+/// Center a gradient line within a width. The gradient spans `span` columns
+/// of art so every logotype row sweeps the same two-tone ramp.
+fn center_gradient_line<'a>(text: &str, span: usize, width: usize) -> Line<'a> {
+    let text_len = text.chars().count();
+    let pad = width.saturating_sub(text_len) / 2;
+    let mut spans: Vec<Span> = Vec::with_capacity(text_len + 1);
+    if pad > 0 {
+        spans.push(Span::raw(" ".repeat(pad)));
     }
-    let pad = (width - text_len) / 2;
-    let mut spans = vec![Span::raw(" ".repeat(pad))];
     for (i, ch) in text.chars().enumerate() {
-        let color = gradient_fn(i);
+        let t = i.min(span.saturating_sub(1));
+        let color = logo_gradient(t * (LOGO_WIDTH - 1) / span.saturating_sub(1).max(1));
         spans.push(Span::styled(
             String::from(ch),
-            Style::default()
-                .fg(color)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
         ));
     }
     Line::from(spans)
 }
 
-/// Create a menu option line. Gold highlight for enabled, gray for locked.
-fn menu_option<'a>(key: &str, label: &str, enabled: bool, width: usize) -> Line<'a> {
-    let text = format!("{}  {}", key, label);
-    let suffix = if !enabled { " (locked)" } else { "" };
-    let full = format!("{}{}", text, suffix);
-    let centered = center_text(&full, width);
+/// Create a menu option line: pulsing '>' accent, vim-key chip, label.
+/// Gold for enabled entries, dim slate for locked ones.
+fn menu_option<'a>(pulse: f64, key: &str, label: &str, enabled: bool, width: usize) -> Line<'a> {
+    let suffix = if !enabled { "  (locked)" } else { "" };
+    // "> [1]  Tutorial"
+    let content_len = 2 + key.len() + 2 + label.len() + suffix.len();
+    let pad = width.saturating_sub(content_len) / 2;
+
+    let mut spans: Vec<Span> = Vec::new();
+    if pad > 0 {
+        spans.push(Span::raw(" ".repeat(pad)));
+    }
 
     if enabled {
-        Line::from(vec![Span::styled(
-            centered,
+        // Pulsing accent cursor
+        let a = (120.0 + 135.0 * pulse) as u8;
+        spans.push(Span::styled(
+            "> ".to_string(),
             Style::default()
-                .fg(Color::Rgb(255, 200, 60))
+                .fg(Color::Rgb(a, (a as f64 * 0.82) as u8, 40))
                 .add_modifier(Modifier::BOLD),
-        )])
+        ));
+        spans.push(Span::styled(
+            key.to_string(),
+            Style::default()
+                .fg(Color::Rgb(86, 205, 227))
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled(
+            format!("  {}", label),
+            Style::default()
+                .fg(Color::Rgb(255, 210, 90))
+                .add_modifier(Modifier::BOLD),
+        ));
     } else {
-        Line::from(vec![Span::styled(
-            centered,
-            Style::default().fg(Color::Rgb(70, 70, 80)),
-        )])
+        spans.push(Span::raw("  ".to_string()));
+        spans.push(Span::styled(
+            key.to_string(),
+            Style::default().fg(Color::Rgb(70, 74, 88)),
+        ));
+        spans.push(Span::styled(
+            format!("  {}{}", label, suffix),
+            Style::default().fg(Color::Rgb(70, 74, 88)),
+        ));
     }
+    Line::from(spans)
 }
 
 /// Center a string within a given width.
 fn center_text(text: &str, width: usize) -> String {
-    if text.len() >= width {
+    let len = text.chars().count();
+    if len >= width {
         return text.to_string();
     }
-    let pad = (width - text.len()) / 2;
+    let pad = (width - len) / 2;
     format!("{}{}", " ".repeat(pad), text)
 }

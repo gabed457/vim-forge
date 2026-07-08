@@ -9,6 +9,72 @@ pub enum Operator {
     Change,
     RotateCW,
     RotateCCW,
+    /// gU — upgrade every upgradable entity in range one tier.
+    Upgrade,
+    /// gu — downgrade every downgradable entity in range one tier.
+    Downgrade,
+    /// g~ — rotate every entity in range 180 degrees.
+    Rotate180,
+}
+
+/// Every motion that can follow an operator (or stand alone).
+/// The parser classifies the keystroke; the input handler (which owns the
+/// cursor and the map) resolves the actual destination tile.
+///
+/// Range semantics when combined with an operator:
+/// - Linewise motions (Up/Down/MapStart/MapEnd/paragraphs/viewport rows/
+///   RowDown/RowUp): whole rows between cursor row and destination row.
+/// - Charwise motions: the 2D reading-order span between cursor and
+///   destination, exactly like a visual-char selection between the two
+///   points. Inclusive motions (e/E/f/t/$/%/g_) include the far endpoint;
+///   exclusive motions (w/b/h/l/0/^/|/F/T/(/)/n/N/ge) exclude the later
+///   endpoint in reading order — matching vim's inclusive/exclusive rules.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MotionKind {
+    Left,
+    Right,
+    Up,
+    Down,
+    WordForward,
+    WordBackward,
+    BigWordForward,
+    BigWordBackward,
+    WordEnd,
+    WordEndBack,
+    BigWordEnd,
+    LineStart,
+    LineEnd,
+    FirstEntity,
+    LastEntity,
+    Column,
+    MapStart(Option<usize>),
+    MapEnd(Option<usize>),
+    ViewportTop,
+    ViewportMiddle,
+    ViewportBottom,
+    Find(EntityType, bool),
+    Til(EntityType, bool),
+    RepeatFind(bool),
+    NextParagraph,
+    PrevParagraph,
+    NextMachine,
+    PrevMachine,
+    RowDown,
+    RowUp,
+    MatchConnection,
+    SearchNext,
+    SearchPrev,
+}
+
+/// Row scope for :s substitution commands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SubstScope {
+    /// `:s/old/new/` — cursor row only.
+    CurrentRow,
+    /// `:%s/old/new/` — every row.
+    WholeMap,
+    /// `:N,Ms/old/new/` — rows N..=M (0-indexed, already converted).
+    Rows(usize, usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -127,7 +193,15 @@ pub enum Command {
     JumpNextEntityBig(usize),
     JumpPrevEntity(usize),
     JumpPrevEntityBig(usize),
-    JumpEndCluster,
+    JumpEndCluster(usize),
+    JumpEndClusterBack(usize),
+    JumpEndClusterBig(usize),
+    JumpNextMachine(usize),
+    JumpPrevMachine(usize),
+    JumpColumn(usize),
+    FirstEntityRowDown(usize),
+    FirstEntityRowUp(usize),
+    LastEntityInRow,
     LineStart,
     LineEnd,
     FirstEntityInRow,
@@ -142,6 +216,14 @@ pub enum Command {
     PrevParagraph(usize),
     MatchConnection,
     RepeatFind(bool),
+
+    /// Operator + motion (e.g. `dw`, `d3l`, `dfs`, `c$`, `gUw`).
+    /// The handler resolves the motion into a concrete Range and applies
+    /// the operator: (operator, motion, count, register).
+    OperatorMotion(Operator, MotionKind, usize, Option<char>),
+    /// Linewise operator over `count` rows starting at the cursor row,
+    /// used by the g-operators (`guu`, `gUU`, `g~~`).
+    OperatorLines(Operator, usize, Option<char>),
 
     // Operators applied to ranges
     Demolish(Range),
@@ -196,6 +278,49 @@ pub enum Command {
     DeleteUnderCursor(usize),
     ToggleFacing,
     RotateEntityUnderCursor,
+    /// J — fill the gap between the entity cluster at/right of the cursor
+    /// and the next cluster on the same row with right-facing belts.
+    JoinClusters(usize),
+    /// Ctrl-a — upgrade the tier of the entity under the cursor N times.
+    TierUp(usize),
+    /// Ctrl-x — downgrade the tier of the entity under the cursor N times.
+    TierDown(usize),
+    /// Replace-mode placement: replace the tile under the cursor with the
+    /// given building and advance the cursor (R mode).
+    ReplaceTile(EntityType),
+    /// gi — jump to the position of the last insert-mode session.
+    JumpLastInsert,
+
+    // Viewport scrolling (zz/zt/zb, Ctrl-d/u/f/b)
+    ScrollCenterCursor,
+    ScrollCursorTop,
+    ScrollCursorBottom,
+    ScrollHalfPageDown(usize),
+    ScrollHalfPageUp(usize),
+    ScrollFullPageDown(usize),
+    ScrollFullPageUp(usize),
+
+    // Jumplist (Ctrl-o / Ctrl-i)
+    JumpListBack(usize),
+    JumpListForward(usize),
+
+    // Visual-mode extensions
+    /// Replace every selected tile with the keyed building (visual `r`).
+    VisualReplace(EntityType),
+    /// Set the visual selection to a text object (`viw`, `vib`, ...).
+    VisualTextObject(bool, char),
+    /// Visual-block column insert: place the building down the block's
+    /// left (I, false) or right (A, true) edge column, one per row.
+    VisualBlockInsert(EntityType, bool),
+    /// O in visual-block: swap the anchor corner horizontally.
+    VisualSwapCorner,
+    /// gv — reselect the last visual selection.
+    ReselectVisual,
+
+    // Extra pane commands (Ctrl-w w/c/x/r)
+    CyclePane,
+    SwapPanes,
+    RotatePanes,
 
     // Undo/Redo
     Undo,
@@ -247,6 +372,17 @@ pub enum Command {
     CmdMenu,
     CmdNoHighlight,
     CmdVersion,
+    /// :s/old/new/[g], :%s/..., :N,Ms/... — entity-type substitution.
+    CmdSubstitute {
+        scope: SubstScope,
+        pattern: String,
+        replacement: String,
+        global: bool,
+    },
+    /// :g/pattern/d — delete every entity matching the pattern.
+    CmdGlobalDelete(String),
+    /// & — repeat the last :s on the current row.
+    RepeatSubstitute,
 
     // Economy / expansion commands
     CmdContracts,
@@ -283,6 +419,19 @@ impl Command {
                 | Command::VisualOperator(_)
                 | Command::VisualPaste(_)
                 | Command::TextObjectOp(..)
+                | Command::JoinClusters(_)
+                | Command::TierUp(_)
+                | Command::TierDown(_)
+                | Command::ReplaceTile(_)
+                | Command::VisualReplace(_)
+                | Command::VisualBlockInsert(..)
+                | Command::CmdSubstitute { .. }
+                | Command::CmdGlobalDelete(_)
+                | Command::RepeatSubstitute
+        ) || matches!(
+            self,
+            Command::OperatorMotion(op, ..) | Command::OperatorLines(op, ..)
+                if !matches!(op, Operator::Yank)
         )
     }
 
@@ -298,7 +447,11 @@ impl Command {
             Command::JumpNextEntityBig(_) => "W",
             Command::JumpPrevEntity(_) => "b",
             Command::JumpPrevEntityBig(_) => "B",
-            Command::JumpEndCluster => "e",
+            Command::JumpEndCluster(_) => "e",
+            Command::JumpEndClusterBack(_) => "ge",
+            Command::JumpEndClusterBig(_) => "E",
+            Command::JumpNextMachine(_) => ")",
+            Command::JumpPrevMachine(_) => "(",
             Command::LineStart => "0",
             Command::LineEnd => "$",
             Command::FirstEntityInRow => "^",
@@ -321,6 +474,16 @@ impl Command {
             Command::Change(_) | Command::ChangeLine(_) => "c",
             Command::RotateCW(_) | Command::RotateCWLine(_) => ">",
             Command::RotateCCW(_) | Command::RotateCCWLine(_) => "<",
+            Command::OperatorMotion(op, ..) | Command::OperatorLines(op, ..) => match op {
+                Operator::Delete => "d",
+                Operator::Yank => "y",
+                Operator::Change => "c",
+                Operator::RotateCW => ">",
+                Operator::RotateCCW => "<",
+                Operator::Upgrade => "gU",
+                Operator::Downgrade => "gu",
+                Operator::Rotate180 => "g~",
+            },
             Command::Paste(_, _, false) => "p",
             Command::Paste(_, _, true) => "P",
             Command::SetMark(_) => "m",

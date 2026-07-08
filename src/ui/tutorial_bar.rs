@@ -25,9 +25,10 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
 
     let style = Style::default().fg(Color::Rgb(200, 200, 210)).bg(TUTORIAL_BG);
     let bold = style.add_modifier(Modifier::BOLD);
-    let title_style = Style::default()
-        .fg(Color::Rgb(80, 200, 255))
-        .bg(TUTORIAL_BG)
+    // Level chip: solid cyan block so the level number/name pops.
+    let chip_style = Style::default()
+        .fg(Color::Rgb(6, 22, 30))
+        .bg(Color::Rgb(80, 200, 255))
         .add_modifier(Modifier::BOLD);
     let goal_style = Style::default()
         .fg(Color::Rgb(255, 220, 60))
@@ -44,10 +45,17 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // Row 1: Level title + colored entity legend
+    // Row 1: Level chip + colored entity legend
     let mut row1 = vec![
-        Span::styled(format!(" Level {}: {} ", level, name), title_style),
-        Span::styled("| ", style),
+        Span::styled(format!(" LEVEL {} ", level), chip_style),
+        Span::styled(
+            format!(" {} ", name),
+            Style::default()
+                .fg(Color::Rgb(80, 200, 255))
+                .bg(TUTORIAL_BG)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("\u{2502} ", style),
     ];
     row1.extend(entity_legend_spans(level));
     lines.push(Line::from(row1));
@@ -55,15 +63,14 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
     // Row 2: Goal + progress indicator
     if area.height >= 2 {
         let progress = progress_text(app, tut);
-        let row2 = vec![
-            Span::styled(" GOAL: ", goal_style),
-            Span::styled(format!("{} ", objective), bold),
-            Span::styled(progress, progress_style),
-        ];
+        let mut row2 = vec![Span::styled(" \u{25B8} GOAL ", goal_style)];
+        row2.extend(highlight_keys(objective, bold, TUTORIAL_BG));
+        row2.push(Span::styled(" ", style));
+        row2.push(Span::styled(progress, progress_style));
         lines.push(Line::from(row2));
     }
 
-    // Row 3: Current hint with counter
+    // Row 3: Current hint with counter, key names highlighted
     if area.height >= 3 {
         let config = get_level(level);
         let num_hints = config.as_ref().map(|c| c.hints.len()).unwrap_or(0);
@@ -74,23 +81,108 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
             .bg(TUTORIAL_BG)
             .add_modifier(Modifier::BOLD);
         let counter_style = Style::default()
-            .fg(Color::Rgb(80, 80, 100))
+            .fg(Color::Rgb(110, 110, 135))
             .bg(TUTORIAL_BG);
         let counter = if num_hints > 1 {
             format!("({}/{}) ", tut.current_hint_index + 1, num_hints)
         } else {
             String::new()
         };
-        let row3 = vec![
-            Span::styled(" Hint: ", hint_style),
+        let mut row3 = vec![
+            Span::styled(" \u{2726} Hint ", hint_style),
             Span::styled(counter, counter_style),
-            Span::styled(format!("{} ", hint_text), style),
         ];
+        row3.extend(highlight_keys(hint_text, style, TUTORIAL_BG));
         lines.push(Line::from(row3));
     }
 
     let paragraph = Paragraph::new(lines).style(style);
     frame.render_widget(paragraph, area);
+}
+
+// ---------------------------------------------------------------------------
+// Key-name highlighting in hint prose
+// ---------------------------------------------------------------------------
+
+/// Style for a highlighted key name inside hint text: gold key-cap.
+fn key_token_style(bg: Color) -> Style {
+    Style::default()
+        .fg(Color::Rgb(255, 216, 100))
+        .bg(bg)
+        .add_modifier(Modifier::BOLD)
+}
+
+/// Split hint prose into spans, rendering vim-key tokens (`h/j/k/l`, `5l`,
+/// `Esc`, `gg`, `$`, `i`, `c`, ...) in a bright key-cap style so the keys to
+/// press jump out of the sentence.
+fn highlight_keys(text: &str, base: Style, bg: Color) -> Vec<Span<'static>> {
+    let key_style = key_token_style(bg);
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut plain = String::new();
+
+    for word in text.split_inclusive(' ') {
+        let trimmed = word.trim_end();
+        let trailing_space = word.len() - trimmed.len();
+        // Strip trailing punctuation for matching, keep it as prose.
+        let stripped = trimmed.trim_end_matches(['.', ',', '!', '?', ':', ';', ')']);
+        let punct = &trimmed[stripped.len()..];
+        // Strip a leading paren too.
+        let (lead, core) = if let Some(rest) = stripped.strip_prefix('(') {
+            ("(", rest)
+        } else {
+            ("", stripped)
+        };
+
+        if !core.is_empty() && is_key_token(core) {
+            if !plain.is_empty() || !lead.is_empty() {
+                spans.push(Span::styled(format!("{}{}", plain, lead), base));
+                plain = String::new();
+            }
+            spans.push(Span::styled(core.to_string(), key_style));
+            plain.push_str(punct);
+            plain.push_str(&" ".repeat(trailing_space));
+        } else {
+            plain.push_str(word);
+        }
+    }
+    if !plain.is_empty() {
+        spans.push(Span::styled(plain, base));
+    }
+    spans
+}
+
+/// Heuristic: is this word a vim key (or key sequence) the player can press?
+fn is_key_token(word: &str) -> bool {
+    // Named keys / chords
+    if matches!(
+        word,
+        "Esc" | "Enter" | "Space" | "Tab" | "Arrows" | "Ctrl-v" | "Ctrl-w" | "Ctrl-r"
+    ) {
+        return true;
+    }
+    // Slash-joined sequences like h/j/k/l or 0/$
+    if word.contains('/') && word.len() <= 11 {
+        return word.split('/').all(|p| !p.is_empty() && is_simple_key(p));
+    }
+    is_simple_key(word)
+}
+
+/// Single vim key or count+key combo: `h`, `gg`, `$`, `5l`, `10j`, `@a`, `qa`, `yy`.
+fn is_simple_key(word: &str) -> bool {
+    // Count prefix + motion: 5l, 10j, 2yy, 4@a
+    let rest = word.trim_start_matches(|c: char| c.is_ascii_digit());
+    if rest.len() != word.len() && !rest.is_empty() {
+        return is_simple_key(rest);
+    }
+    matches!(
+        word,
+        // Motions
+        "h" | "j" | "k" | "l" | "0" | "$" | "gg" | "G" | "H" | "M" | "L" | "w" | "b" | "%"
+        // Editing / placement keys
+        | "i" | "c" | "s" | "x" | "d" | "dd" | "p" | "P" | "yy" | "y" | "u" | "~" | "."
+        // Macros, registers, marks, search
+        | "q" | "qa" | "@a" | "\"a" | "ma" | "mb" | "mc" | "md" | "'a" | "'b" | "fs" | "fb"
+    )
 }
 
 /// Build colored legend spans showing key-action mappings for the current level.

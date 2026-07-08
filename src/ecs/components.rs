@@ -26,6 +26,10 @@ pub struct Processing {
     pub input_a: Option<Resource>,
     pub input_b: Option<Resource>,
     pub output: Option<Resource>,
+    /// How many more copies of `output` this batch still yields (recipes may
+    /// output more than one item, e.g. 1 copper ingot -> 3 copper wire).
+    #[serde(default)]
+    pub output_remaining: u32,
 }
 
 impl Processing {
@@ -35,6 +39,7 @@ impl Processing {
             input_a: None,
             input_b: None,
             output: None,
+            output_remaining: 0,
         }
     }
 
@@ -153,6 +158,70 @@ impl MergerState {
         MergerState {
             priority: MergerPriority::InputA,
         }
+    }
+}
+
+/// Science-pack stock held by a research lab (filled from belt deliveries,
+/// drained by the research loop in `GameSession::post_tick`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LabStock {
+    pub packs: HashMap<Resource, u64>,
+}
+
+impl LabStock {
+    /// Per-pack-type storage cap inside a lab.
+    pub const CAP: u64 = 10;
+
+    pub fn new() -> Self {
+        LabStock {
+            packs: HashMap::new(),
+        }
+    }
+
+    pub fn get(&self, r: Resource) -> u64 {
+        self.packs.get(&r).copied().unwrap_or(0)
+    }
+
+    pub fn add(&mut self, r: Resource) {
+        *self.packs.entry(r).or_insert(0) += 1;
+    }
+
+    /// Remove one pack of the given type. Returns false if none in stock.
+    pub fn take(&mut self, r: Resource) -> bool {
+        match self.packs.get_mut(&r) {
+            Some(n) if *n > 0 => {
+                *n -= 1;
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Fuel storage for power generators (coal generators etc.).
+/// Fuel items are consumed from belt deliveries; each unit burns for
+/// `BURN_TICKS_PER_UNIT` ticks while the generator produces power.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FuelStore {
+    pub units: u32,
+    pub burn_ticks_remaining: u32,
+}
+
+impl FuelStore {
+    /// Ticks of power one fuel item provides.
+    pub const BURN_TICKS_PER_UNIT: u32 = 60;
+    /// Maximum buffered fuel items.
+    pub const CAP: u32 = 5;
+
+    pub fn new() -> Self {
+        FuelStore {
+            units: 0,
+            burn_ticks_remaining: 0,
+        }
+    }
+
+    pub fn is_burning(&self) -> bool {
+        self.burn_ticks_remaining > 0
     }
 }
 

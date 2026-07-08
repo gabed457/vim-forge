@@ -231,6 +231,24 @@ pub fn spawn_entity(
             ) {
                 builder.add(OutputCounter::new());
             }
+            // Research labs stock science packs delivered by belt
+            if matches!(
+                entity_type,
+                EntityType::ResearchLab | EntityType::AdvancedLab
+            ) {
+                builder.add(LabStock::new());
+            }
+            // Fueled power generators get a fuel store
+            if matches!(
+                entity_type,
+                EntityType::CoalGenerator
+                    | EntityType::GasGenerator
+                    | EntityType::GeothermalPlant
+                    | EntityType::NuclearReactor
+                    | EntityType::FusionReactor
+            ) {
+                builder.add(FuelStore::new());
+            }
             world.spawn(builder.build())
         }
     }

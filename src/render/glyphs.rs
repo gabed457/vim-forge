@@ -606,9 +606,11 @@ pub fn building_art(entity_type: EntityType) -> BuildingArt {
 /// For belts, uses the existing directional arrow system.
 /// For other buildings, looks up the art tile for the given (tile_row, tile_col) and applies rotation.
 pub fn entity_art(entity_type: EntityType, facing: Facing, tile_row: usize, tile_col: usize) -> [char; 2] {
-    // Belts use directional arrows — special handling
+    // Belts use directional arrows — special handling.
+    // Cell 0 always carries the direction arrow (never obscured by items);
+    // cell 1 carries the track lane, which items/animation render over.
     if matches!(entity_type, EntityType::BasicBelt | EntityType::FastBelt | EntityType::ExpressBelt) {
-        return [entity_glyph(entity_type, facing), ' '];
+        return [entity_glyph(entity_type, facing), belt_track_glyph(facing)];
     }
 
     let art = building_art(entity_type);
@@ -894,7 +896,13 @@ pub fn building_glow_bg(entity_type: EntityType) -> (u8, u8, u8) {
 /// Returns the display character for an entity type, respecting facing for belts.
 pub fn entity_glyph(entity_type: EntityType, facing: Facing) -> char {
     match entity_type {
-        EntityType::BasicBelt => facing.arrow_glyph(),
+        // Solid triangles read far more crisply than thin arrows at cell size.
+        EntityType::BasicBelt => match facing {
+            Facing::Up => '\u{25B2}',    // ▲
+            Facing::Down => '\u{25BC}',  // ▼
+            Facing::Left => '\u{25C0}',  // ◀
+            Facing::Right => '\u{25B6}', // ▶
+        },
         EntityType::FastBelt => match facing {
             Facing::Up => '\u{21D1}',
             Facing::Down => '\u{21D3}',
@@ -1041,6 +1049,15 @@ pub fn belt_animated_glyph(belt_type: EntityType, facing: Facing, frame: u32) ->
     }
 }
 
+/// Track-lane glyph for the second cell of a belt tile: shows the rail the
+/// items ride on (double-line to match the machine housings).
+pub fn belt_track_glyph(facing: Facing) -> char {
+    match facing {
+        Facing::Left | Facing::Right => '\u{2550}', // ═
+        Facing::Up | Facing::Down => '\u{2551}',    // ║
+    }
+}
+
 /// Returns the style for a belt type using ONLY Color::Rgb.
 pub fn belt_style(belt_type: EntityType) -> Style {
     match belt_type {
@@ -1110,4 +1127,24 @@ pub fn processing_indicator(_entity_type: EntityType, processing: &Processing) -
     }
     let ticks = processing.ticks_remaining.min(9) as u8;
     Some((b'0' + ticks) as char)
+}
+
+// ---------------------------------------------------------------------------
+// Ports
+// ---------------------------------------------------------------------------
+
+/// Whether an art character is an input/output/waste port arrow.
+/// (After rotation these all stay within this set.)
+pub fn is_port_char(c: char) -> bool {
+    matches!(c, '\u{25C2}' | '\u{25B8}' | '\u{25B4}' | '\u{25BE}') // ◂ ▸ ▴ ▾
+}
+
+/// Accent style for a machine's port arrows so its I/O edges pop out of the
+/// housing. Bright warm foreground over the machine's ambient glow.
+pub fn port_style(entity_type: EntityType) -> Style {
+    let glow = building_glow_bg(entity_type);
+    Style::default()
+        .fg(Color::Rgb(255, 232, 150))
+        .bg(Color::Rgb(glow.0.max(14), glow.1.max(14), glow.2.max(14)))
+        .add_modifier(Modifier::BOLD)
 }

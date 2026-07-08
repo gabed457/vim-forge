@@ -40,7 +40,7 @@ pub fn config() -> LevelConfig {
         hints: vec![
             "5 rows of ore and output bins. Build ONE line, record it as a macro, replay it 4 times!",
             "Position at the first row's belt start. Press qa to record into register 'a'.",
-            "Build the line: i, c...c, k, s, j, c...c, (route to assembler), Esc. Move to next row start.",
+            "Build the line: i, c...c, k, s, j, c...c, splitter into both assembler inputs, Esc. End one band DOWN, same column.",
             "Press q to stop recording. Now press 4@a to replay the macro on all remaining rows!",
             "Tip: The macro must end at the same relative position for the next row. 15 widgets to win!",
         ],

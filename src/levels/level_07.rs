@@ -54,7 +54,7 @@ pub fn config() -> LevelConfig {
         objective: "Use named registers (\"a) to save and replicate blueprints. 10 widgets.",
         hints: vec![
             "Build a two-row production cluster near the top. Both rows feed into one output bin.",
-            "In Normal mode, press \"a then 2yy to yank 2 rows into named register 'a'.",
+            "In Normal mode, move to the cluster's TOP row, press \"a9yy to yank all 9 rows into register 'a'.",
             "Navigate down to the next cluster area with j or G.",
             "Press \"a then p to paste your saved blueprint from register 'a'.",
             "Named registers (a-z) persist until overwritten. Produce 10 widgets to win!",

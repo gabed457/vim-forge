@@ -9,7 +9,7 @@ use crate::ecs::components::{EntityKind, FacingComponent, MultiTile, PartOfBuild
 use crate::game::inventory::Inventory;
 use crate::map::grid::Map;
 use crate::map::multitile::building_footprint;
-use crate::resources::Facing;
+use crate::resources::{EntityType, Facing};
 use hecs::World;
 
 /// Yank (copy) entities in the given range into a Blueprint.
@@ -322,6 +322,135 @@ pub fn apply_operator(
         Operator::RotateCCW => {
             rotate_ccw_range(world, map, range);
             None
+        }
+        Operator::Upgrade => {
+            tier_change_range(world, map, range, true);
+            None
+        }
+        Operator::Downgrade => {
+            tier_change_range(world, map, range, false);
+            None
+        }
+        Operator::Rotate180 => {
+            rotate_180_range(world, map, range);
+            None
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tier ladders (Ctrl-a / Ctrl-x, gU / gu)
+// ---------------------------------------------------------------------------
+
+/// The next tier up for an entity type, if an upgrade ladder exists.
+/// Ladders are restricted to same-footprint (1x1) buildings so an upgrade
+/// can never fail to fit on the map.
+pub fn upgrade_tier(entity_type: EntityType) -> Option<EntityType> {
+    match entity_type {
+        EntityType::BasicBelt => Some(EntityType::FastBelt),
+        EntityType::FastBelt => Some(EntityType::ExpressBelt),
+        EntityType::Wall => Some(EntityType::ReinforcedWall),
+        _ => None,
+    }
+}
+
+/// The next tier down for an entity type, if a downgrade ladder exists.
+pub fn downgrade_tier(entity_type: EntityType) -> Option<EntityType> {
+    match entity_type {
+        EntityType::ExpressBelt => Some(EntityType::FastBelt),
+        EntityType::FastBelt => Some(EntityType::BasicBelt),
+        EntityType::ReinforcedWall => Some(EntityType::Wall),
+        _ => None,
+    }
+}
+
+/// Change the tier of the entity anchored at/under (x, y) one step.
+/// Preserves facing. Returns true if a change happened.
+pub fn change_tier_at(world: &mut World, map: &mut Map, x: usize, y: usize, up: bool) -> bool {
+    let entity = match map.entity_at(x, y) {
+        Some(e) => e,
+        None => return false,
+    };
+    let anchor = if let Ok(pob) = world.get::<&PartOfBuilding>(entity) {
+        pob.anchor
+    } else {
+        entity
+    };
+    let kind = match world.get::<&EntityKind>(anchor).ok().map(|k| k.kind) {
+        Some(k) => k,
+        None => return false,
+    };
+    let new_kind = match if up {
+        upgrade_tier(kind)
+    } else {
+        downgrade_tier(kind)
+    } {
+        Some(k) => k,
+        None => return false,
+    };
+    let (ax, ay) = match world.get::<&Position>(anchor).ok().map(|p| (p.x, p.y)) {
+        Some(p) => p,
+        None => return false,
+    };
+    let facing = world
+        .get::<&FacingComponent>(anchor)
+        .ok()
+        .map(|f| f.facing)
+        .unwrap_or(Facing::Right);
+
+    map.remove_multitile_entity(world, ax, ay);
+    map.place_multitile_entity(world, ax, ay, new_kind, facing, true)
+        .is_some()
+}
+
+/// gU / gu over a range: upgrade or downgrade every entity that has a
+/// ladder one tier. Returns the number of entities changed.
+pub fn tier_change_range(world: &mut World, map: &mut Map, range: &Range, up: bool) -> usize {
+    // Collect anchor positions first: mutating while iterating tiles would
+    // let a just-changed building be visited again through another tile.
+    let mut seen: HashSet<hecs::Entity> = HashSet::new();
+    let mut anchors: Vec<(usize, usize)> = Vec::new();
+    for &(x, y) in &range.tiles {
+        if let Some(entity) = map.entity_at(x, y) {
+            let anchor = if let Ok(pob) = world.get::<&PartOfBuilding>(entity) {
+                pob.anchor
+            } else {
+                entity
+            };
+            if seen.insert(anchor) {
+                if let Ok(pos) = world.get::<&Position>(anchor) {
+                    anchors.push((pos.x, pos.y));
+                }
+            }
+        }
+    }
+    let mut changed = 0;
+    for (x, y) in anchors {
+        if change_tier_at(world, map, x, y, up) {
+            changed += 1;
+        }
+    }
+    changed
+}
+
+/// g~ over a range: rotate every entity 180 degrees.
+pub fn rotate_180_range(world: &mut World, map: &mut Map, range: &Range) {
+    let mut seen: HashSet<hecs::Entity> = HashSet::new();
+    for &(x, y) in &range.tiles {
+        if let Some(entity) = map.entity_at(x, y) {
+            let anchor = if let Ok(pob) = world.get::<&PartOfBuilding>(entity) {
+                pob.anchor
+            } else {
+                entity
+            };
+            if seen.insert(anchor) {
+                let old_facing = world
+                    .get::<&FacingComponent>(anchor)
+                    .ok()
+                    .map(|f| f.facing)
+                    .unwrap_or(Facing::Right);
+                rotate_building(world, map, anchor, old_facing.opposite());
+            }
         }
     }
 }

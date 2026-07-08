@@ -145,6 +145,22 @@ impl Viewport {
         self.clamp_to_map(map_width, map_height);
     }
 
+    /// zt: put the cursor row at the top of the viewport (respecting the
+    /// scroll margin, like vim with 'scrolloff' set).
+    pub fn cursor_to_top(&mut self, y: usize, map_width: usize, map_height: usize) {
+        let margin = SCROLL_MARGIN.min(self.height / 2);
+        self.offset_y = y.saturating_sub(margin);
+        self.clamp_to_map(map_width, map_height);
+    }
+
+    /// zb: put the cursor row at the bottom of the viewport (respecting
+    /// the scroll margin).
+    pub fn cursor_to_bottom(&mut self, y: usize, map_width: usize, map_height: usize) {
+        let margin = SCROLL_MARGIN.min(self.height / 2);
+        self.offset_y = (y + margin + 1).saturating_sub(self.height);
+        self.clamp_to_map(map_width, map_height);
+    }
+
     /// Scroll up by a given number of lines.
     pub fn scroll_up(&mut self, lines: usize) {
         self.offset_y = self.offset_y.saturating_sub(lines);

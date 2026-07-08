@@ -100,3 +100,46 @@ pub fn linewise_range(y1: usize, y2: usize) -> (usize, usize) {
         (y2, y1)
     }
 }
+
+/// The 2D reading-order (charwise) span between two positions, exactly
+/// like a visual-char selection between the two points: partial first and
+/// last rows, full rows in between.
+///
+/// `inclusive` follows vim's operator+motion rules: an inclusive motion
+/// (e/f/t/$/%) includes the far endpoint; an exclusive motion (w/b/h/l/0)
+/// excludes whichever endpoint comes later in reading order — so `dw`
+/// deletes up to but not including the next cluster, and `db` deletes back
+/// to the target but leaves the tile under the cursor.
+pub fn charwise_span(
+    from: (usize, usize),
+    to: (usize, usize),
+    inclusive: bool,
+    map_width: usize,
+) -> Vec<(usize, usize)> {
+    // Order endpoints by reading order (row-major).
+    let (start, end) = if (from.1, from.0) <= (to.1, to.0) {
+        (from, to)
+    } else {
+        (to, from)
+    };
+
+    let mut tiles = Vec::new();
+    for row in start.1..=end.1 {
+        let x0 = if row == start.1 { start.0 } else { 0 };
+        let x1 = if row == end.1 {
+            end.0
+        } else {
+            map_width.saturating_sub(1)
+        };
+        for x in x0..=x1 {
+            if x < map_width {
+                tiles.push((x, row));
+            }
+        }
+    }
+    if !inclusive {
+        // Drop the later endpoint in reading order.
+        tiles.pop();
+    }
+    tiles
+}

@@ -429,18 +429,19 @@ fn level_13_split_keys_and_cross_map_route_unlock_freeplay() {
     assert_eq!(facing_at(&s, 76, 4), Some(Facing::Down));
     assert_eq!(facing_at(&s, 76, 38), Some(Facing::Right));
 
-    // Completing the final campaign level unlocks freeplay instead of
-    // auto-advancing to another level.
+    // Level 13 is no longer the campaign finale (the curriculum now runs to
+    // level 30): completing it advances to level 14.
     assert!(!s.app.freeplay_unlocked);
     for _ in 0..3000 {
         s.tick(1);
-        if s.app.freeplay_unlocked {
+        if s.current_level() == Some(14) {
             break;
         }
     }
     let (_, _, widgets, _) = s.output_totals();
-    assert!(
-        s.app.freeplay_unlocked,
-        "level 13 should unlock freeplay; widgets delivered = {widgets}"
+    assert_eq!(
+        s.current_level(),
+        Some(14),
+        "level 13 should advance to level 14; widgets delivered = {widgets}"
     );
 }

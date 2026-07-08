@@ -88,3 +88,36 @@ fn level_2_lay_belts_and_deliver_ore() {
     let (ore, _, _, _) = s.output_totals();
     panic!("level 2 never completed; ore delivered = {ore}");
 }
+
+#[test]
+fn save_and_load_round_trip_via_commands() {
+    let dir = std::env::temp_dir().join("vimforge_test_saves");
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("roundtrip.json");
+    let path_str = path.to_string_lossy().to_string();
+    let _ = std::fs::remove_file(&path);
+
+    // Play some of level 2: lay 5 belts, then :w <path>
+    let mut s = session_at_level(2);
+    s.feed_keys("6j5li");
+    for _ in 0..5 {
+        s.feed_keys("c");
+    }
+    s.feed_keys("<Esc>");
+    s.feed_keys(&format!(":w {path_str}<CR>"));
+    assert!(path.exists(), "save file should exist");
+
+    // Fresh session, load via :e <path>
+    let mut s2 = session_at_level(1);
+    s2.feed_keys(&format!(":e {path_str}<CR>"));
+
+    use vimforge::resources::EntityType;
+    // The 5 belts and the level-2 buildings must be restored
+    assert_eq!(s2.entity_type_at(5, 6), Some(EntityType::BasicBelt));
+    assert_eq!(s2.entity_type_at(9, 6), Some(EntityType::BasicBelt));
+    assert_eq!(s2.entity_type_at(2, 5), Some(EntityType::OreDeposit));
+    // Tutorial progress restored: still on level 2
+    assert_eq!(s2.current_level(), Some(2));
+
+    let _ = std::fs::remove_file(&path);
+}

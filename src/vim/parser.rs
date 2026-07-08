@@ -456,9 +456,15 @@ impl VimParser {
             }
 
             // Viewport positions
-            KeyCode::Char('H') if mods.is_empty() => self.motion(MotionKind::ViewportTop),
-            KeyCode::Char('M') if mods.is_empty() => self.motion(MotionKind::ViewportMiddle),
-            KeyCode::Char('L') if mods.is_empty() => self.motion(MotionKind::ViewportBottom),
+            KeyCode::Char('H') if !mods.contains(KeyModifiers::CONTROL) => {
+                self.motion(MotionKind::ViewportTop)
+            }
+            KeyCode::Char('M') if !mods.contains(KeyModifiers::CONTROL) => {
+                self.motion(MotionKind::ViewportMiddle)
+            }
+            KeyCode::Char('L') if !mods.contains(KeyModifiers::CONTROL) => {
+                self.motion(MotionKind::ViewportBottom)
+            }
 
             // Sentence motions: previous/next machine (non-belt building)
             KeyCode::Char('(') => self.motion(MotionKind::PrevMachine),
@@ -646,6 +652,62 @@ impl VimParser {
                 self.reset_pending();
                 self.mode = Mode::Insert;
                 vec![Command::EnterInsert(count)]
+            }
+            // Insert variants: a (append), A (append at cluster end),
+            // I (insert at first entity), o (open row below), O (open above).
+            KeyCode::Char('a') if mods.is_empty() && self.operator.is_none() => {
+                let count = self.effective_count();
+                self.insert_count = count;
+                self.reset_pending();
+                self.mode = Mode::Insert;
+                vec![
+                    Command::Move(Direction::Right, 1),
+                    Command::EnterInsert(count),
+                ]
+            }
+            KeyCode::Char('A') if !mods.contains(KeyModifiers::CONTROL)
+                && self.operator.is_none() =>
+            {
+                let count = self.effective_count();
+                self.insert_count = count;
+                self.reset_pending();
+                self.mode = Mode::Insert;
+                vec![
+                    Command::LastEntityInRow,
+                    Command::Move(Direction::Right, 1),
+                    Command::EnterInsert(count),
+                ]
+            }
+            KeyCode::Char('I') if !mods.contains(KeyModifiers::CONTROL)
+                && self.operator.is_none() =>
+            {
+                let count = self.effective_count();
+                self.insert_count = count;
+                self.reset_pending();
+                self.mode = Mode::Insert;
+                vec![Command::FirstEntityInRow, Command::EnterInsert(count)]
+            }
+            KeyCode::Char('o') if mods.is_empty() && self.operator.is_none() => {
+                let count = self.effective_count();
+                self.insert_count = count;
+                self.reset_pending();
+                self.mode = Mode::Insert;
+                vec![
+                    Command::Move(Direction::Down, 1),
+                    Command::EnterInsert(count),
+                ]
+            }
+            KeyCode::Char('O') if !mods.contains(KeyModifiers::CONTROL)
+                && self.operator.is_none() =>
+            {
+                let count = self.effective_count();
+                self.insert_count = count;
+                self.reset_pending();
+                self.mode = Mode::Insert;
+                vec![
+                    Command::Move(Direction::Up, 1),
+                    Command::EnterInsert(count),
+                ]
             }
 
             // Visual modes
@@ -1659,9 +1721,15 @@ impl VimParser {
             KeyCode::Char('{') => motion(self, Command::PrevParagraph(count)),
             KeyCode::Char('%') => motion(self, Command::MatchConnection),
 
-            KeyCode::Char('H') if mods.is_empty() => motion(self, Command::ViewportTop),
-            KeyCode::Char('M') if mods.is_empty() => motion(self, Command::ViewportMiddle),
-            KeyCode::Char('L') if mods.is_empty() => motion(self, Command::ViewportBottom),
+            KeyCode::Char('H') if !mods.contains(KeyModifiers::CONTROL) => {
+                motion(self, Command::ViewportTop)
+            }
+            KeyCode::Char('M') if !mods.contains(KeyModifiers::CONTROL) => {
+                motion(self, Command::ViewportMiddle)
+            }
+            KeyCode::Char('L') if !mods.contains(KeyModifiers::CONTROL) => {
+                motion(self, Command::ViewportBottom)
+            }
 
             KeyCode::Char('n') if mods.is_empty() => motion(self, Command::SearchNext(count)),
             KeyCode::Char('N') => motion(self, Command::SearchPrev(count)),

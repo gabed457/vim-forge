@@ -1176,3 +1176,84 @@ fn test_undo_not_clobbered_by_motions() {
     rig.feed(".");
     assert_eq!(rig.et(0, 0), None, "cursor back at 0 after 0; dot re-deletes");
 }
+
+// ---------------------------------------------------------------------------
+// Insert-entry variants: a A I o O (and H/M/L guard regression)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_enters_insert_one_tile_right() {
+    let mut rig = Rig::new(20, 10);
+    rig.feed("5l3j"); // (5,3)
+    rig.feed("a");
+    assert_eq!(rig.input.parser.mode, Mode::Insert);
+    assert_eq!(rig.cursor(), (6, 3));
+    rig.feed("c<Esc>"); // place a belt at (6,3)
+    assert_eq!(rig.et(6, 3), Some(EntityType::BasicBelt));
+}
+
+#[test]
+fn capital_a_appends_after_last_entity_in_row() {
+    let mut rig = Rig::new(30, 10);
+    for x in 4..=8 {
+        rig.place(x, 2, EntityType::BasicBelt, Facing::Right);
+    }
+    rig.feed("2j"); // row 2, col 0
+    rig.feed("A");
+    assert_eq!(rig.input.parser.mode, Mode::Insert);
+    assert_eq!(rig.cursor(), (9, 2), "A should land after the last belt");
+    rig.feed("c<Esc>");
+    assert_eq!(rig.et(9, 2), Some(EntityType::BasicBelt));
+}
+
+#[test]
+fn capital_i_inserts_at_first_entity_in_row() {
+    let mut rig = Rig::new(30, 10);
+    for x in 6..=9 {
+        rig.place(x, 4, EntityType::BasicBelt, Facing::Right);
+    }
+    rig.feed("4j20l");
+    rig.feed("I");
+    assert_eq!(rig.input.parser.mode, Mode::Insert);
+    assert_eq!(rig.cursor(), (6, 4), "I should land on the first entity");
+}
+
+#[test]
+fn o_and_capital_o_open_row_below_and_above() {
+    let mut rig = Rig::new(20, 10);
+    rig.feed("3j5l"); // (5,3)
+    rig.feed("o");
+    assert_eq!(rig.input.parser.mode, Mode::Insert);
+    assert_eq!(rig.cursor(), (5, 4));
+    rig.feed("<Esc>");
+    rig.feed("O");
+    assert_eq!(rig.input.parser.mode, Mode::Insert);
+    assert_eq!(rig.cursor(), (5, 3));
+    rig.feed("<Esc>");
+}
+
+#[test]
+fn h_m_l_viewport_motions_work_with_shift_modifier() {
+    // Regression: H/M/L arrive as Char('H') + SHIFT and were dead keys.
+    let mut rig = Rig::new(30, 60);
+    rig.input.viewport_top = 10;
+    rig.input.viewport_height = 20;
+    rig.feed("15j"); // somewhere mid-viewport
+    rig.feed("H");
+    assert_eq!(rig.cursor().1, 10, "H jumps to viewport top");
+    rig.feed("M");
+    assert_eq!(rig.cursor().1, 20, "M jumps to viewport middle");
+    rig.feed("L");
+    assert_eq!(rig.cursor().1, 29, "L jumps to viewport bottom");
+}
+
+#[test]
+fn dot_repeats_o_insert_session() {
+    let mut rig = Rig::new(20, 10);
+    rig.feed("o"); // open below -> (0,1)
+    rig.feed("c<Esc>"); // belt at (0,1)
+    assert_eq!(rig.et(0, 1), Some(EntityType::BasicBelt));
+    rig.feed("0"); // back to col 0 (cursor advanced after placing)
+    rig.feed("."); // repeat: open below from (0,1) -> place belt at (0,2)
+    assert_eq!(rig.et(0, 2), Some(EntityType::BasicBelt));
+}

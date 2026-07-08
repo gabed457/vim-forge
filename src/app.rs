@@ -20,6 +20,7 @@ use crate::vim::search::SearchState;
 pub enum Mode {
     Normal,
     Insert,
+    Replace,
     Visual,
     VisualLine,
     VisualBlock,

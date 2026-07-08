@@ -135,65 +135,162 @@ fn help_content<'a>(topic: Option<&str>) -> (&'static str, Vec<Line<'a>>) {
     let title = "Help";
 
     match topic {
+        Some("motions") | Some("motion") | Some("move") => {
+            lines.push(styled_header("Motions"));
+            lines.push(line_kv("h/j/k/l", "Move (counts work: 5l)"));
+            lines.push(line_kv("w/b", "Next/prev cluster"));
+            lines.push(line_kv("e/ge", "End of cluster fwd/back"));
+            lines.push(line_kv("W/B/E", "Big cluster hops"));
+            lines.push(line_kv("0/^/$/g_", "Row start/first/last/end"));
+            lines.push(line_kv("|", "Jump to column N (5|)"));
+            lines.push(line_kv("+/-", "First entity row below/above"));
+            lines.push(line_kv("gg/G", "Map top/bottom (5G = row 5)"));
+            lines.push(line_kv("{/}", "Prev/next paragraph band"));
+            lines.push(line_kv("(/)", "Prev/next machine"));
+            lines.push(line_kv("H/M/L", "Viewport top/mid/bottom"));
+            lines.push(line_kv("Ctrl-d/u", "Half page down/up"));
+            lines.push(line_kv("Ctrl-f/b", "Full page down/up"));
+            lines.push(line_kv("zz/zt/zb", "Scroll cursor center/top/bottom"));
+            lines.push(line_kv("f/F t/T", "Find/til entity (fs=smelter)"));
+            lines.push(line_kv(";/,", "Repeat find same/reverse"));
+            lines.push(line_kv("%", "Follow belt chain to its end"));
+            lines.push(line_kv("Ctrl-o/Ctrl-i", "Jumplist back/forward"));
+        }
+        Some("operators") | Some("ops") | Some("d") => {
+            lines.push(styled_header("Operators (compose with motions/objects)"));
+            lines.push(line_kv("d{m}", "Demolish (dw, d3l, dfs, dG)"));
+            lines.push(line_kv("y{m}", "Yank blueprint (yy = line)"));
+            lines.push(line_kv("c{m}", "Change: demolish + insert"));
+            lines.push(line_kv(">/<", "Rotate CW/CCW over range"));
+            lines.push(line_kv("gU/gu", "Upgrade/downgrade tier over range"));
+            lines.push(line_kv("g~", "Rotate 180 over range"));
+            lines.push(line_kv("dd/yy/cc/gUU", "Doubled = whole line"));
+            lines.push(line_kv("x", "Delete tile (3x = 3 tiles)"));
+            lines.push(line_kv("s/S", "Substitute tile / change line"));
+            lines.push(line_kv("C/D/Y", "Change/delete/yank to line end"));
+            lines.push(line_kv("r{key}", "Replace tile with building"));
+            lines.push(line_kv("R", "Replace mode (typing replaces)"));
+            lines.push(line_kv("~", "Rotate entity under cursor"));
+            lines.push(line_kv("J", "Join: bridge gap to next cluster"));
+            lines.push(line_kv("Ctrl-a/Ctrl-x", "Upgrade/downgrade belt tier"));
+            lines.push(line_kv("u/Ctrl-r", "Undo / redo"));
+            lines.push(line_kv(".", "Repeat last edit"));
+        }
+        Some("objects") | Some("textobjects") | Some("o") => {
+            lines.push(styled_header("Text Objects (after d/c/y/gU or v)"));
+            lines.push(line_kv("iw/aw", "Inner/around cluster"));
+            lines.push(line_kv("ip/ap", "Inner/around paragraph band"));
+            lines.push(line_kv("ib/ab i(/a(", "Inner/around walled block"));
+            lines.push(line_kv("i[/i{/i<", "Same block (bracket aliases)"));
+            lines.push(line_kv("i\"/a\"", "Belt run (straight same-dir line)"));
+            lines.push(line_kv("it/at", "Machine footprint / + ports"));
+            lines.push(line_kv("is/as", "Machine block (sentence)"));
+            lines.push(Line::from(""));
+            lines.push(Line::from("Examples: diw ciw yap dab di\" gUit"));
+        }
         Some("insert") | Some("i") => {
-            lines.push(styled_header("Insert Mode"));
-            lines.push(line_kv("s", "Place smelter"));
-            lines.push(line_kv("a", "Place assembler"));
-            lines.push(line_kv("c", "Place conveyor"));
-            lines.push(line_kv("p", "Place splitter"));
-            lines.push(line_kv("e", "Place merger"));
-            lines.push(line_kv("w", "Place wall"));
-            lines.push(line_kv("h/j/k/l", "Change facing"));
-            lines.push(line_kv("Esc", "Return to normal mode"));
+            lines.push(styled_header("Insert Mode (i a A I o O)"));
+            lines.push(line_kv("i/a", "Insert here / one right"));
+            lines.push(line_kv("I/A", "Insert at row start / cluster end"));
+            lines.push(line_kv("o/O", "Insert one row below / above"));
+            lines.push(line_kv("c", "Conveyor belt (1/2/3 = tier)"));
+            lines.push(line_kv("s/a", "Smelter / assembler"));
+            lines.push(line_kv("b/m", "Splitter / merger"));
+            lines.push(line_kv("u/U", "Underground entrance/exit"));
+            lines.push(line_kv("e/r", "Coal generator / research lab"));
+            lines.push(line_kv("w/p", "Wall / pipe"));
+            lines.push(line_kv("C S A Q E...", "UPPERCASE opens category menus"));
+            lines.push(line_kv("Shift-HJKL", "Set facing + move"));
+            lines.push(line_kv("hjkl", "Move without placing"));
+            lines.push(line_kv("Backspace", "Undo last placement"));
+            lines.push(line_kv("Esc", "Back to normal mode"));
         }
         Some("visual") | Some("v") => {
             lines.push(styled_header("Visual Mode"));
-            lines.push(line_kv("v", "Character-wise visual"));
-            lines.push(line_kv("V", "Line-wise visual"));
-            lines.push(line_kv("Ctrl-v", "Block visual"));
-            lines.push(line_kv("d", "Demolish selection"));
-            lines.push(line_kv("y", "Yank selection"));
-            lines.push(line_kv("r/R", "Rotate CW/CCW"));
-            lines.push(line_kv("o", "Swap anchor"));
+            lines.push(line_kv("v/V/Ctrl-v", "Char / line / block select"));
+            lines.push(line_kv("motions", "Extend (counts work: v5l)"));
+            lines.push(line_kv("iw/ib/i\"...", "Select text object"));
+            lines.push(line_kv("d/x/y/c", "Demolish / yank / change"));
+            lines.push(line_kv("r{key}", "Replace all selected"));
+            lines.push(line_kv("~", "Rotate 180 selection"));
+            lines.push(line_kv("u/U", "Downgrade/upgrade tiers"));
+            lines.push(line_kv(">/<", "Rotate CW/CCW"));
+            lines.push(line_kv("I/A (block)", "Column insert left/right edge"));
+            lines.push(line_kv("o", "Swap anchor corner"));
+            lines.push(line_kv("gv", "Reselect last selection"));
+            lines.push(line_kv("p", "Paste over selection"));
+        }
+        Some("registers") | Some("reg") => {
+            lines.push(styled_header("Registers & Macros"));
+            lines.push(line_kv("\"a-\"z", "Named registers (\"ayy \"ap)"));
+            lines.push(line_kv("\"A-\"Z", "APPEND to register"));
+            lines.push(line_kv("\"0", "Last yank"));
+            lines.push(line_kv("\"1-\"9", "Delete history"));
+            lines.push(line_kv("\"_", "Black hole (delete, keep unnamed)"));
+            lines.push(line_kv("qa...q", "Record macro into a"));
+            lines.push(line_kv("@a / @@", "Play macro / replay last"));
+            lines.push(line_kv("5@a", "Play macro 5 times"));
+            lines.push(line_kv(":reg", "Inspect registers"));
+        }
+        Some("marks") | Some("m") => {
+            lines.push(styled_header("Marks & Jumps"));
+            lines.push(line_kv("ma", "Set mark a here"));
+            lines.push(line_kv("`a / 'a", "Jump to mark exact / row"));
+            lines.push(line_kv("`` / ''", "Back to previous jump"));
+            lines.push(line_kv("Ctrl-o/Ctrl-i", "Jumplist older/newer"));
+            lines.push(line_kv(":marks", "List marks"));
+        }
+        Some("search") | Some("/") => {
+            lines.push(styled_header("Search"));
+            lines.push(line_kv("/name", "Search forward (e.g. /smelter)"));
+            lines.push(line_kv("?name", "Search backward"));
+            lines.push(line_kv("n/N", "Next/previous match"));
+            lines.push(line_kv("*/#", "Search entity under cursor fwd/back"));
+            lines.push(line_kv(":noh", "Clear highlight"));
+        }
+        Some("commands") | Some("cmd") | Some(":") => {
+            lines.push(styled_header("Command Line"));
+            lines.push(line_kv(":s/old/new/", "Substitute in row"));
+            lines.push(line_kv(":%s/belt/fastbelt/g", "Substitute whole map"));
+            lines.push(line_kv(":5,10s/../../g", "Substitute row range"));
+            lines.push(line_kv(":g/wall/d", "Delete all matching"));
+            lines.push(line_kv("& / @:", "Repeat :s / last command"));
+            lines.push(line_kv(":w :q :wq ZZ", "Save / quit"));
+            lines.push(line_kv(":speed N :pause", "Sim control (:step too)"));
+            lines.push(line_kv(":level N :restart", "Level select / restart"));
+            lines.push(line_kv(":freeplay :menu", "Modes"));
+            lines.push(line_kv(":sp :vsp Ctrl-w", "Splits (v s hjkl w c x r q o =)"));
+        }
+        Some("economy") | Some("eco") => {
+            lines.push(styled_header("Economy & Progression (Freeplay)"));
+            lines.push(line_kv(":research", "Tech tree (labs eat science packs)"));
+            lines.push(line_kv(":contracts", "Delivery contracts"));
+            lines.push(line_kv(":market", "Prices & trends"));
+            lines.push(line_kv(":finance", "Cash / income / expenses"));
+            lines.push(line_kv(":recipe", "Recipe book"));
+            lines.push(line_kv(":loan", "Take a $5k loan"));
+            lines.push(line_kv(":prestige", "Prestige points"));
+            lines.push(Line::from(""));
+            lines.push(Line::from("Deliveries auto-sell. Generators need fuel."));
         }
         _ => {
             lines.push(styled_header("VimForge Help"));
             lines.push(Line::from(""));
-            lines.push(styled_header("Movement"));
-            lines.push(line_kv("h/j/k/l", "Move cursor"));
-            lines.push(line_kv("w/b", "Next/prev entity"));
-            lines.push(line_kv("W/B", "Next/prev entity (big)"));
-            lines.push(line_kv("0/$", "Line start/end"));
-            lines.push(line_kv("^", "First entity in row"));
-            lines.push(line_kv("gg/G", "Map start/end"));
-            lines.push(line_kv("H/M/L", "Viewport top/mid/bottom"));
-            lines.push(line_kv("f/F", "Find entity forward/back"));
-            lines.push(line_kv("%", "Jump to connected machine"));
+            lines.push(Line::from("Topic pages — :h <topic>"));
             lines.push(Line::from(""));
-            lines.push(styled_header("Editing"));
-            lines.push(line_kv("i", "Enter insert mode"));
-            lines.push(line_kv("d{motion}", "Demolish"));
-            lines.push(line_kv("y{motion}", "Yank (copy)"));
-            lines.push(line_kv("p/P", "Paste after/before"));
-            lines.push(line_kv("x", "Delete under cursor"));
-            lines.push(line_kv("r{type}", "Replace entity"));
-            lines.push(line_kv("~", "Toggle facing"));
-            lines.push(line_kv("u/Ctrl-r", "Undo/redo"));
-            lines.push(line_kv(".", "Repeat last change"));
-            lines.push(Line::from(""));
-            lines.push(styled_header("Commands"));
-            lines.push(line_kv(":w", "Save"));
-            lines.push(line_kv(":q", "Quit"));
-            lines.push(line_kv(":speed N", "Set sim speed"));
-            lines.push(line_kv(":pause/:resume", "Pause/resume sim"));
-            lines.push(line_kv(":stats", "Show statistics"));
-            lines.push(line_kv(":contracts", "Contract board"));
-            lines.push(line_kv(":market", "Resource market"));
-            lines.push(line_kv(":finance", "Finance overview"));
-            lines.push(line_kv(":research", "Tech tree"));
+            lines.push(line_kv(":h motions", "hjkl w e f % {} Ctrl-d zz jumplist"));
+            lines.push(line_kv(":h operators", "d c y gU x s R J Ctrl-a . u"));
+            lines.push(line_kv(":h objects", "iw ip ib i\" it + friends"));
+            lines.push(line_kv(":h insert", "i a A I o O + building keys"));
+            lines.push(line_kv(":h visual", "v V Ctrl-v, block I/A, gv"));
+            lines.push(line_kv(":h registers", "\"a \"A \"0-\"9 macros q @"));
+            lines.push(line_kv(":h marks", "ma `a '' Ctrl-o/Ctrl-i"));
+            lines.push(line_kv(":h search", "/ ? n N * #"));
+            lines.push(line_kv(":h commands", ":s :%s :g & @: splits"));
+            lines.push(line_kv(":h economy", "research contracts market"));
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                "Press Esc or q to close",
+                "j/k scroll - Esc or q to close",
                 Style::default().fg(Color::Rgb(70, 70, 80)),
             )));
         }

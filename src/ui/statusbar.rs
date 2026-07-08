@@ -184,6 +184,7 @@ fn mode_chip(app: &AppState) -> (String, Style) {
                 chip((10, 30, 12), (110, 200, 110)),
             )
         }
+        Mode::Replace => (" REPLACE ".to_string(), chip((250, 235, 235), (178, 52, 66))),
         Mode::Visual => (" VISUAL ".to_string(), chip((30, 18, 4), (235, 150, 50))),
         Mode::VisualLine => (" V-LINE ".to_string(), chip((30, 18, 4), (235, 150, 50))),
         Mode::VisualBlock => (" V-BLOCK ".to_string(), chip((30, 18, 4), (235, 150, 50))),

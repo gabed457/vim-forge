@@ -482,7 +482,13 @@ impl GameSession {
 
         self.app.mode = match self.input.parser.mode {
             crate::vim::parser::Mode::Normal => Mode::Normal,
-            crate::vim::parser::Mode::Insert => Mode::Insert,
+            crate::vim::parser::Mode::Insert => {
+                if self.input.parser.replace_mode {
+                    Mode::Replace
+                } else {
+                    Mode::Insert
+                }
+            }
             crate::vim::parser::Mode::Visual => Mode::Visual,
             crate::vim::parser::Mode::VisualLine => Mode::VisualLine,
             crate::vim::parser::Mode::VisualBlock => Mode::VisualBlock,
@@ -1006,6 +1012,19 @@ impl GameSession {
         app.mode = Mode::Normal;
 
         app.economy.cash = data.economy_cash;
+
+        // Restore completed research (saved as TechId Debug strings) and
+        // recompute the unlocked-recipe set from it.
+        app.research = crate::research::tree::ResearchState::new();
+        for tech in crate::research::tree::get_all_techs() {
+            if data
+                .research_completed
+                .iter()
+                .any(|name| name == &format!("{:?}", tech.id))
+            {
+                app.research.completed.insert(tech.id);
+            }
+        }
         app.scaling.level = data.scaling_level;
         app.day_tick = data.day_tick;
         app.game_mode = match data.game_mode.as_deref() {
@@ -1013,6 +1032,7 @@ impl GameSession {
             Some("Freeplay") => GameMode::Freeplay,
             _ => GameMode::Tutorial,
         };
+        app.simulation.config.freeplay_power = app.game_mode == GameMode::Freeplay;
 
         // Restore tutorial progress
         if let Some(ref ts) = data.tutorial_state {
@@ -1031,6 +1051,7 @@ impl GameSession {
             self.tutorial = None;
             self.app.show_tutorial = false;
         }
+        self.refresh_unlocked_recipes();
         self.resize_viewport();
     }
 

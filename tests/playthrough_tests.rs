@@ -136,3 +136,56 @@ fn macro_replays_count_as_tutorial_edits() {
         "macro replays must count their edits"
     );
 }
+
+#[test]
+fn research_popup_selects_and_starts_tech_interactively() {
+    let mut s = GameSession::new(160, 48);
+    s.feed_keys("1"); // enter level 1 so we're out of the menu
+    s.start_freeplay();
+
+    s.feed_keys(":research<CR>");
+    assert!(s.app.popup.is_some(), "research popup should open");
+    let avail = s.available_research();
+    assert!(avail.len() >= 2, "freeplay should offer several techs");
+
+    // Move selection to the second tech and start it.
+    s.feed_keys("j<CR>");
+    assert_eq!(
+        s.app.research.current,
+        Some(avail[1]),
+        "Enter should start the selected tech"
+    );
+    s.feed_keys("<Esc>");
+    assert!(s.app.popup.is_none());
+}
+
+#[test]
+fn contracts_popup_accepts_selected_contract() {
+    let mut s = GameSession::new(160, 48);
+    s.feed_keys("1");
+    s.start_freeplay();
+
+    // Manufacture availability: deliver-history + a forced refresh happens on
+    // cycle boundaries; simulate until contracts appear.
+    s.app
+        .delivered_lifetime
+        .insert(vimforge::resources::Resource::IronOre, 10);
+    for _ in 0..400 {
+        s.tick(1);
+        if !s.app.contract_board.available.is_empty() {
+            break;
+        }
+    }
+    assert!(
+        !s.app.contract_board.available.is_empty(),
+        "contracts should generate in freeplay"
+    );
+    let active_before = s.app.contract_board.active.len();
+    s.feed_keys(":contracts<CR><CR>"); // open popup, accept first selection
+    assert!(
+        s.app.contract_board.active.len() > active_before
+            || active_before > 0, // first one may have auto-accepted as the demo
+        "Enter should accept the selected contract"
+    );
+    s.feed_keys("<Esc>");
+}

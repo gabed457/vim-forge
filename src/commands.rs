@@ -383,6 +383,8 @@ pub enum Command {
     CmdGlobalDelete(String),
     /// & — repeat the last :s on the current row.
     RepeatSubstitute,
+    /// An ex-command that isn't recognized (echoes an error like vim).
+    CmdUnknown(String),
 
     // Economy / expansion commands
     CmdContracts,

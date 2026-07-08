@@ -70,6 +70,8 @@ pub struct AppState {
     // -- Mode --
     pub mode: Mode,
     pub insert_facing: Facing,
+    /// Insert-mode category submenu currently open (e.g. "Power"), if any.
+    pub insert_category: Option<&'static str>,
 
     // -- Vim state --
     pub registers: RegisterStore,
@@ -89,6 +91,8 @@ pub struct AppState {
     pub animations: AnimationManager,
     pub popup: Option<PopupKind>,
     pub popup_scroll: usize,
+    /// Selection index inside interactive popups (research/contracts).
+    pub popup_cursor: usize,
 
     // -- Status / messaging --
     pub status_message: String,
@@ -165,6 +169,7 @@ impl AppState {
 
             mode: Mode::Menu,
             insert_facing: Facing::Right,
+            insert_category: None,
 
             registers: RegisterStore::new(),
             marks: MarkStore::new(),
@@ -181,6 +186,7 @@ impl AppState {
             animations: AnimationManager::new(),
             popup: None,
             popup_scroll: 0,
+            popup_cursor: 0,
 
             status_message: String::new(),
             status_error: false,

@@ -1273,3 +1273,18 @@ fn cc_changes_line_and_enters_insert() {
     assert_eq!(rig.et(4, 0), None, "cc should clear the row");
     rig.feed("<Esc>");
 }
+
+#[test]
+fn zz_and_zq_save_quit_commands() {
+    let mut rig = Rig::new(10, 10);
+    let cmds = rig.feed("ZZ");
+    assert!(
+        cmds.iter().any(|c| matches!(c, Command::SaveAndQuit)),
+        "ZZ should emit SaveAndQuit, got {cmds:?}"
+    );
+    let cmds = rig.feed("ZQ");
+    assert!(
+        cmds.iter().any(|c| matches!(c, Command::QuitNoSave)),
+        "ZQ should emit QuitNoSave, got {cmds:?}"
+    );
+}

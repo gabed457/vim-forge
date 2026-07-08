@@ -782,6 +782,8 @@ impl InputState {
             // Insert mode actions
             Command::PlaceEntity(entity_type) => {
                 let facing = self.parser.insert_facing;
+                // Snapshot BEFORE mutating, but roll it back on failure so a
+                // string of failed placements doesn't poison the undo stack.
                 undo.push_snapshot(world, map, inventory);
                 if map.place_entity_on_map(
                     world,
@@ -790,7 +792,16 @@ impl InputState {
                     entity_type,
                     facing,
                     true,
-                ).is_some() {
+                ).is_none() {
+                    undo.discard_last_snapshot();
+                    self.status_message = format!(
+                        "Can't place {} at ({},{}): tile occupied or out of bounds                          [facing {}]",
+                        entity_type.name(),
+                        self.cursor_x,
+                        self.cursor_y,
+                        facing.arrow_glyph()
+                    );
+                } else {
                     self.last_insert_pos = Some((self.cursor_x, self.cursor_y));
                     // Advance cursor past the footprint in the facing direction
                     let fp = crate::map::multitile::building_footprint(entity_type)
@@ -1440,7 +1451,10 @@ impl InputState {
                     format!("Help: {}", topic.as_deref().unwrap_or("general"));
             }
             Command::CmdLevel(lvl) => {
-                self.status_message = format!("Level: {:?}", lvl);
+                self.status_message = match lvl {
+                    Some(n) => format!("Loading level {n}..."),
+                    None => "Usage: :level <number>".to_string(),
+                };
             }
             Command::CmdRestart => {
                 self.status_message = "Restart".to_string();
@@ -1453,6 +1467,9 @@ impl InputState {
             }
             Command::CmdNoHighlight => {
                 self.search.clear();
+            }
+            Command::CmdUnknown(ref name) => {
+                self.status_message = format!("Not an editor command: {name}");
             }
             Command::CmdVersion => {
                 self.status_message = format!("VimForge v{}", env!("CARGO_PKG_VERSION"));
@@ -1480,7 +1497,10 @@ impl InputState {
                 self.status_message = "Loan management".to_string();
             }
             Command::CmdRecipe(num) => {
-                self.status_message = format!("Recipe: {:?}", num);
+                self.status_message = match num {
+                    Some(n) => format!("Recipe {n}"),
+                    None => "Recipe book".to_string(),
+                };
             }
             Command::CmdResearch => {
                 self.status_message = "Research tree".to_string();

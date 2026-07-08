@@ -142,7 +142,11 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
     lines.push(Line::from(vec![
         Span::styled("Cash: ", Style::default().fg(Color::Rgb(140, 140, 140))),
         Span::styled(
-            format!("${}", app.economy.cash),
+            if app.economy.cash.abs() >= 1_000_000_000_000 {
+                "$\u{221E}".to_string()
+            } else {
+                format!("${}", app.economy.cash)
+            },
             Style::default()
                 .fg(Color::Rgb(80, 220, 80))
                 .add_modifier(Modifier::BOLD),

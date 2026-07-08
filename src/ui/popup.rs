@@ -452,7 +452,7 @@ fn contracts_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
     lines.push(styled_header("Contract Board"));
     lines.push(line_kv("Reputation", &format!("{}", board.reputation)));
     lines.push(line_kv(
-        "Completed/Failed",
+        "Completed / Failed",
         &format!("{} / {}", board.completed_count, board.failed_count),
     ));
     lines.push(Line::from(""));
@@ -480,12 +480,23 @@ fn contracts_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
     }
     lines.push(Line::from(""));
 
-    lines.push(styled_header("Available Contracts"));
+    lines.push(styled_header("Available Contracts — j/k select, Enter to accept"));
     if board.available.is_empty() {
         lines.push(dim("  (a new batch is generated every 300 ticks)".into()));
     }
-    for c in &board.available {
-        lines.push(plain(format!("  {} [{}]", c.name, c.tier.name())));
+    for (i, c) in board.available.iter().enumerate() {
+        let selected = i == app.popup_cursor;
+        if selected {
+            lines.push(Line::from(vec![Span::styled(
+                format!("> {} [{}]", c.name, c.tier.name()),
+                Style::default()
+                    .fg(Color::Rgb(20, 24, 34))
+                    .bg(Color::Rgb(240, 200, 100))
+                    .add_modifier(Modifier::BOLD),
+            )]));
+        } else {
+            lines.push(plain(format!("  {} [{}]", c.name, c.tier.name())));
+        }
         for req in &c.requirements {
             lines.push(dim(format!(
                 "    {:<20} x{}",
@@ -652,8 +663,50 @@ fn research_content<'a>(app: &AppState) -> (&'static str, Vec<Line<'a>>) {
         None => lines.push(dim("  (idle — deliver science packs to a lab)".into())),
     }
     lines.push(Line::from(""));
+
+    // Interactive selection: j/k moves, Enter starts researching.
+    lines.push(styled_header("Available Now — j/k select, Enter to research"));
+    let available: Vec<_> = techs
+        .iter()
+        .filter(|t| {
+            !t.is_infinite
+                && !rs.completed.contains(&t.id)
+                && is_available(t.id, &rs.completed)
+        })
+        .collect();
+    if available.is_empty() {
+        lines.push(dim("  (nothing available — finish current research)".into()));
+    }
+    for (i, tech) in available.iter().enumerate() {
+        let selected = i == app.popup_cursor;
+        let cost: Vec<String> = tech
+            .science_cost
+            .iter()
+            .map(|(r, n)| format!("{} x{}", r.name(), n))
+            .collect();
+        let prefix = if selected { "> " } else { "  " };
+        let style = if selected {
+            Style::default()
+                .fg(Color::Rgb(20, 24, 34))
+                .bg(Color::Rgb(240, 200, 100))
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Rgb(200, 205, 215))
+        };
+        lines.push(Line::from(vec![Span::styled(
+            format!(
+                "{}{} (tier {}) — {}",
+                prefix,
+                tech.name,
+                tech.tier,
+                cost.join(", ")
+            ),
+            style,
+        )]));
+    }
+    lines.push(Line::from(""));
     lines.push(dim("Labs consume science packs delivered by belt.".into()));
-    lines.push(dim("The cheapest available tech is auto-selected;".into()));
+    lines.push(dim("If nothing is selected the cheapest tech auto-starts;".into()));
     lines.push(dim("finished techs unlock recipes and grant cash.".into()));
     lines.push(Line::from(""));
 

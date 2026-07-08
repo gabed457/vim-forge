@@ -179,10 +179,11 @@ fn mode_chip(app: &AppState) -> (String, Style) {
         Mode::Normal => (" NORMAL ".to_string(), chip((225, 232, 245), (68, 82, 112))),
         Mode::Insert => {
             let arrow = app.insert_facing.arrow_glyph();
-            (
-                format!(" INSERT {} ", arrow),
-                chip((10, 30, 12), (110, 200, 110)),
-            )
+            let label = match app.insert_category {
+                Some(cat) => format!(" INSERT [{cat}] {arrow} pick a key, Esc=back "),
+                None => format!(" INSERT {arrow} "),
+            };
+            (label, chip((10, 30, 12), (110, 200, 110)))
         }
         Mode::Replace => (" REPLACE ".to_string(), chip((250, 235, 235), (178, 52, 66))),
         Mode::Visual => (" VISUAL ".to_string(), chip((30, 18, 4), (235, 150, 50))),

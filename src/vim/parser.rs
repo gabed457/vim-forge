@@ -907,13 +907,18 @@ impl VimParser {
                 vec![]
             }
 
-            // ZZ / ZQ
+            // ZZ / ZQ (second Z matches this arm again, so resolve here)
             KeyCode::Char('Z') => {
+                if self.command_buffer == "Z" {
+                    self.reset_pending();
+                    return vec![Command::SaveAndQuit];
+                }
                 self.command_buffer.push('Z');
-                // Wait for the second Z or Q -- we handle this inline
-                // by checking the command buffer on the next key
-                // For simplicity, track via command_buffer
                 vec![]
+            }
+            KeyCode::Char('Q') if self.command_buffer == "Z" => {
+                self.reset_pending();
+                vec![Command::QuitNoSave]
             }
 
             // Arrow keys for movement
@@ -2140,10 +2145,8 @@ impl VimParser {
             "campaign" => vec![Command::CmdCampaign],
             "prestige" => vec![Command::CmdPrestige],
             "seed" => vec![Command::CmdSeed],
-            _ => {
-                // Unknown command
-                vec![]
-            }
+            "" => vec![],
+            other => vec![Command::CmdUnknown(other.to_string())],
         }
     }
 

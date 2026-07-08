@@ -70,6 +70,12 @@ impl UndoStack {
         self.redo.clear();
     }
 
+    /// Drop the most recent snapshot (used when an edit turned out to be a
+    /// no-op, e.g. a failed placement, so `u` isn't polluted).
+    pub fn discard_last_snapshot(&mut self) {
+        self.undo.pop();
+    }
+
     /// Undo: pop from undo, push current to redo, restore popped.
     pub fn undo(&mut self, world: &mut World, map: &mut Map, inventory: &mut Inventory) -> bool {
         if let Some(snapshot) = self.undo.pop() {

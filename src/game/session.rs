@@ -27,6 +27,9 @@ pub struct GameSession {
     pub term_height: usize,
     /// Set to true when the player quits.
     pub quit: bool,
+    /// Status-message expiry tracking (post_tick clears stale messages).
+    last_status: String,
+    status_age: u32,
 }
 
 impl GameSession {
@@ -44,6 +47,8 @@ impl GameSession {
             term_width,
             term_height,
             quit: false,
+            last_status: String::new(),
+            status_age: 0,
         }
     }
 
@@ -196,6 +201,21 @@ impl GameSession {
     /// When no research is active, automatically start the cheapest
     /// available technology (popups cannot take selection input, so the
     /// queue is driven for the player; see the :research popup).
+    /// Available (unlocked, not completed, non-infinite) techs in
+    /// get_all_techs order — the order the research popup lists them.
+    pub fn available_research(&self) -> Vec<crate::research::tree::TechId> {
+        let completed = &self.app.research.completed;
+        crate::research::tree::get_all_techs()
+            .into_iter()
+            .filter(|t| {
+                !t.is_infinite
+                    && !completed.contains(&t.id)
+                    && crate::research::tree::is_available(t.id, completed)
+            })
+            .map(|t| t.id)
+            .collect()
+    }
+
     fn auto_select_research(&mut self) {
         if self.app.research.current.is_some() {
             return;
@@ -227,19 +247,66 @@ impl GameSession {
             return true;
         }
 
-        // Popup dismiss / scroll
-        if self.app.popup.is_some() {
+        // Popup dismiss / scroll / interactive selection
+        if let Some(kind) = self.app.popup.clone() {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('q') => {
                     self.app.popup = None;
                     self.app.popup_scroll = 0;
+                    self.app.popup_cursor = 0;
                 }
-                KeyCode::Char('j') | KeyCode::Down => {
-                    self.app.popup_scroll += 1;
-                }
+                KeyCode::Char('j') | KeyCode::Down => match kind {
+                    PopupKind::Research => {
+                        let n = self.available_research().len();
+                        if n > 0 && self.app.popup_cursor + 1 < n {
+                            self.app.popup_cursor += 1;
+                        }
+                        self.app.popup_scroll += 1;
+                    }
+                    PopupKind::Contracts => {
+                        let n = self.app.contract_board.available.len();
+                        if n > 0 && self.app.popup_cursor + 1 < n {
+                            self.app.popup_cursor += 1;
+                        }
+                        self.app.popup_scroll += 1;
+                    }
+                    _ => self.app.popup_scroll += 1,
+                },
                 KeyCode::Char('k') | KeyCode::Up => {
+                    self.app.popup_cursor = self.app.popup_cursor.saturating_sub(1);
                     self.app.popup_scroll = self.app.popup_scroll.saturating_sub(1);
                 }
+                KeyCode::Enter => match kind {
+                    PopupKind::Research => {
+                        let avail = self.available_research();
+                        if let Some(&id) = avail.get(self.app.popup_cursor) {
+                            self.app.research.start_research(id);
+                            let name = crate::research::tree::get_tech(id).name;
+                            self.app.status_message =
+                                format!("Researching: {name}");
+                        }
+                    }
+                    PopupKind::Contracts => {
+                        let id = self
+                            .app
+                            .contract_board
+                            .available
+                            .get(self.app.popup_cursor)
+                            .map(|c| c.id);
+                        if let Some(id) = id {
+                            let tick = self.app.simulation.tick_count;
+                            if self.app.contract_board.accept(id, tick) {
+                                self.app.status_message =
+                                    "Contract accepted".to_string();
+                                self.app.popup_cursor = 0;
+                            } else {
+                                self.app.status_message =
+                                    "Contract slots full".to_string();
+                            }
+                        }
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
             return false;
@@ -293,6 +360,41 @@ impl GameSession {
             }
         }
 
+        // Juice: flashes and particles for edits (rendering reads these;
+        // simulation state is untouched).
+        for cmd in &commands {
+            match cmd {
+                Command::PlaceEntity(et) => {
+                    self.app
+                        .animations
+                        .flash_placement(self.input.cursor_x, self.input.cursor_y);
+                    crate::render::particles::spawn_machine_particles(
+                        &mut self.app.particles,
+                        *et,
+                        self.input.cursor_x,
+                        self.input.cursor_y,
+                    );
+                }
+                Command::Demolish(_)
+                | Command::DemolishLine(_)
+                | Command::DeleteUnderCursor(_) => {
+                    self.app
+                        .animations
+                        .flash_demolition(self.input.cursor_x, self.input.cursor_y);
+                }
+                _ => {}
+            }
+        }
+        // Failed placements set an error message in the input handler —
+        // flash the status bar red so the failure is impossible to miss.
+        if self.input.status_message.starts_with("Can't place") {
+            self.app.animations.flash_status_failure();
+            self.app
+                .animations
+                .flash_error(self.input.cursor_x, self.input.cursor_y);
+        }
+
+        let status_before_commands = self.app.status_message.clone();
         for cmd in &commands {
             match cmd {
                 Command::ToggleSidebar => {
@@ -461,22 +563,39 @@ impl GameSession {
             }
         }
 
-        self.sync_after_key();
+        let session_set_message = self.app.status_message != status_before_commands;
+        self.sync_after_key(session_set_message);
         false
     }
 
     /// Synchronize AppState mirrors of InputState after key handling.
-    fn sync_after_key(&mut self) {
+    /// `session_set_message`: the command loop just set an app-level status
+    /// message; don't clobber it with the input handler's generic echo.
+    fn sync_after_key(&mut self, session_set_message: bool) {
         self.app.cursor_x = self.input.cursor_x;
         self.app.cursor_y = self.input.cursor_y;
 
         if let Some(ref mut tut) = self.tutorial {
             tut.visit_position(self.app.cursor_x, self.app.cursor_y);
+            // Standing on ANY tile of a multi-tile building counts as
+            // visiting its anchor (NavigateToAll targets are anchors).
+            if let Some(entity) = self.app.map.entity_at(self.app.cursor_x, self.app.cursor_y) {
+                let anchor = self
+                    .app
+                    .world
+                    .get::<&crate::ecs::components::PartOfBuilding>(entity)
+                    .map(|p| p.anchor)
+                    .unwrap_or(entity);
+                if let Ok(pos) = self.app.world.get::<&crate::ecs::components::Position>(anchor) {
+                    tut.visit_position(pos.x, pos.y);
+                }
+            }
             tut.auto_advance_hint();
         }
         self.app.pending_keys = self.input.parser.command_buffer.clone();
         self.app.command_buffer = self.input.parser.command_line.clone();
         self.app.insert_facing = self.input.parser.insert_facing;
+        self.app.insert_category = self.input.parser.insert_category_name();
         self.app.recording_macro = self.input.parser.recording_macro;
         self.app.show_sidebar = self.input.sidebar_visible;
 
@@ -513,7 +632,9 @@ impl GameSession {
         }
 
         if !self.input.status_message.is_empty() {
-            self.app.status_message = self.input.status_message.clone();
+            if !session_set_message {
+                self.app.status_message = self.input.status_message.clone();
+            }
             self.input.status_message.clear();
         }
     }
@@ -553,6 +674,26 @@ impl GameSession {
             level_completed = Self::check_tutorial_completion(&self.app, tut);
         }
 
+        // Status messages expire instead of lingering forever.
+        if self.app.status_message == self.last_status {
+            self.status_age += 1;
+            if self.status_age > 240 {
+                self.app.status_message.clear();
+                self.last_status.clear();
+                self.status_age = 0;
+            }
+        } else {
+            self.last_status = self.app.status_message.clone();
+            self.status_age = 0;
+        }
+
+        // A stuck player still gets the next hint eventually.
+        if self.app.simulation.tick_count % 150 == 0 {
+            if let Some(ref mut tut) = self.tutorial {
+                tut.advance_hint();
+            }
+        }
+
         self.app.day_tick = (self.app.day_tick + 1) % 600;
         self.app.particles.tick();
         self.app.trails.tick();
@@ -569,13 +710,21 @@ impl GameSession {
             let next = self.tutorial.as_ref().map(|t| t.current_level);
             if let Some(level) = next {
                 if config::get_level(level).is_some() && level != config::FREEPLAY_LEVEL {
-                    self.app.status_message =
-                        format!("Level {} complete! Starting next level...", level - 1);
+                    let done = level - 1;
+                    let name = config::get_level(done)
+                        .map(|c| c.name)
+                        .unwrap_or("");
+                    self.app.status_message = format!(
+                        "* LEVEL {done} COMPLETE — {name}! * Next: level {level} of 30"
+                    );
+                    self.app.animations.flash_status_success();
                     self.start_level(level);
                 } else {
                     self.app.freeplay_unlocked = true;
+                    self.app.animations.flash_status_success();
                     self.app.status_message =
-                        "All levels complete! Freeplay unlocked! Type :freeplay".to_string();
+                        "*** CAMPAIGN COMPLETE — you know vim! *** Freeplay unlocked: type :freeplay"
+                            .to_string();
                 }
             }
         }
@@ -761,9 +910,10 @@ impl GameSession {
             .scaling
             .check_scaling_increase(&self.app.economy, completed);
 
-        // Contract generation + auto-accept (freeplay only). Since popups
-        // can't take selection input, contracts whose resources the player
-        // has delivered before are accepted automatically.
+        // Contract generation (freeplay only). Contracts are accepted by
+        // the player in the :contracts popup (j/k + Enter); as a safety net
+        // the first eligible contract auto-accepts only while the player has
+        // never accepted one manually, so the loop demos itself once.
         if self.app.game_mode == GameMode::Freeplay
             && self.app.contract_board.refresh_available(tick)
         {
@@ -791,20 +941,26 @@ impl GameSession {
                 );
                 self.app.contract_board.add_available(contract);
             }
-            let auto_ids: Vec<u64> = self
-                .app
-                .contract_board
-                .available
-                .iter()
-                .filter(|c| {
-                    c.requirements
-                        .iter()
-                        .all(|req| self.app.delivered_lifetime.contains_key(&req.resource))
-                })
-                .map(|c| c.id)
-                .collect();
-            for id in auto_ids {
-                self.app.contract_board.accept(id, tick);
+            let never_engaged = self.app.contract_board.active.is_empty()
+                && self.app.contract_board.completed_count == 0
+                && self.app.contract_board.failed_count == 0;
+            if never_engaged {
+                let auto_id: Option<u64> = self
+                    .app
+                    .contract_board
+                    .available
+                    .iter()
+                    .find(|c| {
+                        c.requirements.iter().all(|req| {
+                            self.app.delivered_lifetime.contains_key(&req.resource)
+                        })
+                    })
+                    .map(|c| c.id);
+                if let Some(id) = auto_id {
+                    self.app.contract_board.accept(id, tick);
+                    self.app.status_message =
+                        "First contract accepted — :contracts to manage them".to_string();
+                }
             }
         }
     }

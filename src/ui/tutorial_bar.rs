@@ -312,7 +312,76 @@ fn progress_text(app: &AppState, tut: &TutorialState) -> String {
         CompletionCondition::DeliverIngots(target) => {
             format!("[{}/{} ingots]", ingots, target)
         }
-        _ => String::new(),
+        CompletionCondition::UseCommands(cmds) => {
+            let used = cmds
+                .iter()
+                .filter(|c| tut.commands_used.contains(c.as_str()))
+                .count();
+            if used < cmds.len() {
+                // Show up to three commands still missing.
+                let missing: Vec<&str> = cmds
+                    .iter()
+                    .filter(|c| !tut.commands_used.contains(c.as_str()))
+                    .take(3)
+                    .map(|c| c.as_str())
+                    .collect();
+                format!("[{}/{} keys — need: {}]", used, cmds.len(), missing.join(" "))
+            } else {
+                format!("[{}/{} keys]", used, cmds.len())
+            }
+        }
+        CompletionCondition::ScoreInMoves(target, max_edits) => {
+            let over = tut.edit_count > *max_edits;
+            if over {
+                format!(
+                    "[{}/{} widgets | edits {}/{} OVER PAR — :restart]",
+                    widgets, target, tut.edit_count, max_edits
+                )
+            } else {
+                format!(
+                    "[{}/{} widgets | edits {}/{}]",
+                    widgets, target, tut.edit_count, max_edits
+                )
+            }
+        }
+        CompletionCondition::Custom(name) => match name.as_str() {
+            "all_conveyors_facing_right" => {
+                let mut total = 0usize;
+                let mut right = 0usize;
+                for (_e, (kind, facing)) in app
+                    .world
+                    .query::<(
+                        &crate::ecs::components::EntityKind,
+                        &crate::ecs::components::FacingComponent,
+                    )>()
+                    .iter()
+                {
+                    if kind.kind == crate::resources::EntityType::BasicBelt {
+                        total += 1;
+                        if facing.facing == crate::resources::Facing::Right {
+                            right += 1;
+                        }
+                    }
+                }
+                format!("[{right}/{total} belts facing right]")
+            }
+            "all_5_clusters_producing" => {
+                let mut bins = 0usize;
+                let mut producing = 0usize;
+                for (_e, c) in app
+                    .world
+                    .query::<&crate::ecs::components::OutputCounter>()
+                    .iter()
+                {
+                    bins += 1;
+                    if c.total() >= 1 {
+                        producing += 1;
+                    }
+                }
+                format!("[{producing}/{bins} bins flowing]")
+            }
+            _ => String::new(),
+        },
     }
 }
 

@@ -85,25 +85,66 @@ pub fn day_phase_from_tick(tick: u32) -> DayPhase {
     }
 }
 
-/// Day/night color multiplier tuple for a given phase.
-fn phase_tint(phase: DayPhase) -> (f64, f64, f64) {
-    match phase {
-        DayPhase::Dawn => (1.1, 1.0, 0.8),
-        DayPhase::Day => (1.0, 1.0, 1.0),
-        DayPhase::Dusk => (1.1, 0.9, 0.7),
-        DayPhase::Night => (0.6, 0.7, 0.9),
+/// Keyframes for the day/night tint curve: (tick, (r_mult, g_mult, b_mult)).
+///
+/// The tint is linearly interpolated between successive keyframes, so dawn
+/// and dusk are smooth color lerps rather than hard switches. The last
+/// keyframe wraps back to the first (tick 600 == tick 0).
+const TINT_KEYFRAMES: [(u32, (f64, f64, f64)); 7] = [
+    (0, (1.0, 1.0, 1.0)),        // morning: full daylight
+    (240, (1.0, 1.0, 1.0)),      // afternoon: still full daylight
+    (340, (1.10, 0.88, 0.68)),   // golden hour: warm amber wash
+    (400, (0.78, 0.68, 0.82)),   // dusk: violet fade
+    (450, (0.52, 0.60, 0.92)),   // night: cool blue moonlight
+    (530, (0.52, 0.60, 0.92)),   // deep night holds
+    (575, (1.02, 0.86, 0.74)),   // dawn: rosy warm-up
+];
+
+/// Smoothly interpolated day/night color multiplier for a given tick.
+pub fn day_night_multiplier(day_tick: u32) -> (f64, f64, f64) {
+    let t = day_tick % CYCLE_LENGTH;
+    let n = TINT_KEYFRAMES.len();
+    for i in 0..n {
+        let (t0, c0) = TINT_KEYFRAMES[i];
+        // Next keyframe, wrapping to the first at tick CYCLE_LENGTH.
+        let (t1, c1) = if i + 1 < n {
+            TINT_KEYFRAMES[i + 1]
+        } else {
+            (CYCLE_LENGTH, TINT_KEYFRAMES[0].1)
+        };
+        if t >= t0 && t < t1 {
+            let span = (t1 - t0).max(1) as f64;
+            let f = (t - t0) as f64 / span;
+            return (
+                c0.0 + (c1.0 - c0.0) * f,
+                c0.1 + (c1.1 - c0.1) * f,
+                c0.2 + (c1.2 - c0.2) * f,
+            );
+        }
     }
+    (1.0, 1.0, 1.0)
 }
 
-/// Apply the day/night color tint to a background color.
-/// Machine foreground colors should NOT be passed through this.
+/// Apply the day/night color tint to a background color (full strength).
 pub fn apply_day_night(color: (u8, u8, u8), day_tick: u32) -> (u8, u8, u8) {
-    let phase = day_phase_from_tick(day_tick);
-    let (mr, mg, mb) = phase_tint(phase);
+    let (mr, mg, mb) = day_night_multiplier(day_tick);
     (
         (color.0 as f64 * mr).min(255.0) as u8,
         (color.1 as f64 * mg).min(255.0) as u8,
         (color.2 as f64 * mb).min(255.0) as u8,
+    )
+}
+
+/// Apply a gentler day/night tint suited for foreground glyphs: the
+/// multiplier is blended halfway toward neutral so machines stay readable
+/// at night while still picking up the ambient hue.
+pub fn apply_day_night_fg(color: (u8, u8, u8), day_tick: u32) -> (u8, u8, u8) {
+    let (mr, mg, mb) = day_night_multiplier(day_tick);
+    let soften = |m: f64| m + (1.0 - m) * 0.55;
+    (
+        (color.0 as f64 * soften(mr)).min(255.0) as u8,
+        (color.1 as f64 * soften(mg)).min(255.0) as u8,
+        (color.2 as f64 * soften(mb)).min(255.0) as u8,
     )
 }
 

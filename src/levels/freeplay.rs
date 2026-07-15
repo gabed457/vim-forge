@@ -2,91 +2,78 @@ use crate::resources::{EntityType, Facing};
 
 use super::config::{CompletionCondition, LevelConfig, LevelEntity};
 
-/// Freeplay mode: large open map with scattered resources.
+/// Freeplay mode: a rich 120x80 "Factorio start" with every raw resource
+/// represented, several output bins (deliveries auto-sell at market price),
+/// and one pre-placed research lab so the science loop is discoverable.
 /// Uses fixed (deterministic) positions for reproducibility.
 pub fn config() -> LevelConfig {
     let mut entities = Vec::new();
 
-    // 10 ore deposits (3x2) scattered across the map
-    let ore_positions: [(usize, usize); 10] = [
-        (2, 5),
-        (2, 15),
-        (2, 30),
-        (2, 45),
-        (2, 60),
-        (55, 5),
-        (55, 15),
-        (55, 30),
-        (55, 45),
-        (55, 60),
-    ];
-
-    for &(x, y) in &ore_positions {
+    let mut add = |x: usize, y: usize, entity_type: EntityType| {
         entities.push(LevelEntity {
             x,
             y,
-            entity_type: EntityType::OreDeposit,
+            entity_type,
             facing: Facing::Right,
             player_placed: false,
         });
+    };
+
+    // ---- Extractors (3x2 each) --------------------------------------
+    // Iron: the bread-and-butter starter patches
+    for &(x, y) in &[(4, 6), (4, 20), (30, 10), (10, 52)] {
+        add(x, y, EntityType::OreDeposit);
+    }
+    // Copper: wire/circuit chains
+    for &(x, y) in &[(4, 34), (30, 40), (14, 64)] {
+        add(x, y, EntityType::CopperDeposit);
+    }
+    // Coal: fuel for generators and steam
+    for &(x, y) in &[(4, 46), (44, 6), (52, 58)] {
+        add(x, y, EntityType::CoalDeposit);
+    }
+    // Stone: bricks, concrete, sand
+    for &(x, y) in &[(18, 6), (40, 66)] {
+        add(x, y, EntityType::StoneQuarry);
+    }
+    // Oil: plastics, rubber, fuel
+    for &(x, y) in &[(70, 8), (78, 50)] {
+        add(x, y, EntityType::OilWell);
+    }
+    // Water: chemistry, steam, coolant
+    for &(x, y) in &[(60, 20), (90, 64)] {
+        add(x, y, EntityType::WaterPump);
+    }
+    // Sand: glass and silicon wafers
+    for &(x, y) in &[(70, 30), (24, 74)] {
+        add(x, y, EntityType::SandExtractor);
+    }
+    // Late-game specialties, one patch each, far from spawn
+    add(90, 12, EntityType::SulfurMine);
+    add(98, 40, EntityType::BauxiteMine);
+    add(108, 70, EntityType::UraniumMine);
+    add(100, 24, EntityType::LithiumExtractor);
+    add(110, 4, EntityType::RareEarthExtractor);
+    add(54, 72, EntityType::BiomassHarvester);
+    add(88, 74, EntityType::GasExtractor);
+
+    // ---- Delivery points (3x2 output bins) --------------------------
+    for &(x, y) in &[(114, 12), (114, 30), (114, 48), (114, 62), (60, 40)] {
+        add(x, y, EntityType::OutputBin);
     }
 
-    // 4 output bins (3x2)
-    let bin_positions: [(usize, usize); 4] = [
-        (110, 10),
-        (110, 25),
-        (110, 45),
-        (110, 60),
-    ];
+    // ---- One research lab (3x3), input port on its left ------------
+    add(66, 36, EntityType::ResearchLab);
 
-    for &(x, y) in &bin_positions {
-        entities.push(LevelEntity {
-            x,
-            y,
-            entity_type: EntityType::OutputBin,
-            facing: Facing::Right,
-            player_placed: false,
-        });
+    // ---- A little ruined-structure flavor ---------------------------
+    for x in 46..=52 {
+        add(x, 24, EntityType::Wall);
     }
-
-    // Some walls for structure (1x1 each)
-    // Horizontal wall segments
-    for x in 30..=35 {
-        entities.push(LevelEntity {
-            x,
-            y: 0,
-            entity_type: EntityType::Wall,
-            facing: Facing::Right,
-            player_placed: false,
-        });
+    for y in 25..=29 {
+        add(46, y, EntityType::Wall);
     }
-    for x in 70..=75 {
-        entities.push(LevelEntity {
-            x,
-            y: 79,
-            entity_type: EntityType::Wall,
-            facing: Facing::Right,
-            player_placed: false,
-        });
-    }
-    // Vertical wall segments
-    for y in 30..=45 {
-        entities.push(LevelEntity {
-            x: 45,
-            y,
-            entity_type: EntityType::Wall,
-            facing: Facing::Right,
-            player_placed: false,
-        });
-    }
-    for y in 15..=28 {
-        entities.push(LevelEntity {
-            x: 85,
-            y,
-            entity_type: EntityType::Wall,
-            facing: Facing::Right,
-            player_placed: false,
-        });
+    for x in 84..=88 {
+        add(x, 56, EntityType::Wall);
     }
 
     LevelConfig {
@@ -95,11 +82,11 @@ pub fn config() -> LevelConfig {
         map_width: 120,
         map_height: 80,
         entities,
-        objective: "Build whatever you want! No restrictions, no completion condition.",
+        objective: "Build a factory empire: research tech, fulfill contracts, stay solvent.",
         hints: vec![
-            "This is freeplay mode. All commands are available.",
-            "Experiment with different factory layouts.",
-            "Try to maximize widget production!",
+            "Deliveries to output bins sell automatically at market price.",
+            "Belt iron+copper into an assembler making science pack 1, then belt packs to the lab.",
+            "Check :research :market :contracts :finance :recipe for the full picture.",
         ],
         allowed_commands: None,
         completion: CompletionCondition::Custom("freeplay".to_string()),

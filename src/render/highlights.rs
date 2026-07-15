@@ -1,5 +1,7 @@
 use ratatui::style::{Color, Modifier, Style};
 
+use crate::render::animations::{Flash, FlashKind};
+
 /// The different types of highlights that can be applied to tiles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HighlightType {
@@ -30,32 +32,40 @@ pub enum HighlightType {
 }
 
 /// Returns the ratatui Style for a given highlight type. ONLY uses Color::Rgb.
+///
+/// The cursor styles set BOTH fg and bg explicitly (rather than relying on
+/// REVERSED), so the cursor block stays high-contrast on every possible
+/// background — it can never disappear into a same-colored tile.
 pub fn highlight_style(ht: HighlightType) -> Style {
     match ht {
         HighlightType::Cursor => Style::default()
-            .bg(Color::Rgb(80, 80, 120))
-            .add_modifier(Modifier::REVERSED),
-        HighlightType::CursorInsert => Style::default()
-            .bg(Color::Rgb(60, 120, 60))
-            .add_modifier(Modifier::REVERSED),
-        HighlightType::VisualSelection => Style::default().bg(Color::Rgb(100, 80, 40)),
-        HighlightType::SearchCurrent => Style::default()
-            .bg(Color::Rgb(200, 150, 0))
+            .fg(Color::Rgb(12, 14, 20))
+            .bg(Color::Rgb(240, 238, 225))
             .add_modifier(Modifier::BOLD),
-        HighlightType::SearchOther => Style::default().bg(Color::Rgb(80, 60, 0)),
+        HighlightType::CursorInsert => Style::default()
+            .fg(Color::Rgb(8, 20, 10))
+            .bg(Color::Rgb(120, 235, 130))
+            .add_modifier(Modifier::BOLD),
+        HighlightType::VisualSelection => Style::default().bg(Color::Rgb(72, 62, 110)),
+        HighlightType::SearchCurrent => Style::default()
+            .fg(Color::Rgb(25, 20, 5))
+            .bg(Color::Rgb(255, 190, 40))
+            .add_modifier(Modifier::BOLD),
+        HighlightType::SearchOther => Style::default().bg(Color::Rgb(92, 72, 8)),
         HighlightType::ErrorFlash => Style::default()
-            .fg(Color::Rgb(255, 60, 60))
-            .bg(Color::Rgb(80, 0, 0)),
+            .fg(Color::Rgb(255, 80, 80))
+            .bg(Color::Rgb(96, 8, 8))
+            .add_modifier(Modifier::BOLD),
         HighlightType::PlacementFlash => Style::default()
-            .fg(Color::Rgb(80, 220, 80))
-            .bg(Color::Rgb(30, 80, 30))
+            .fg(Color::Rgb(120, 255, 120))
+            .bg(Color::Rgb(24, 88, 32))
             .add_modifier(Modifier::BOLD),
         HighlightType::DemolitionFlash => Style::default()
-            .fg(Color::Rgb(200, 140, 60))
-            .bg(Color::Rgb(60, 30, 10)),
+            .fg(Color::Rgb(230, 160, 70))
+            .bg(Color::Rgb(70, 36, 12)),
         HighlightType::ContractFlash => Style::default()
-            .fg(Color::Rgb(255, 215, 0))
-            .bg(Color::Rgb(60, 50, 10))
+            .fg(Color::Rgb(255, 225, 80))
+            .bg(Color::Rgb(72, 58, 8))
             .add_modifier(Modifier::BOLD),
         HighlightType::ConnectionChain => Style::default()
             .bg(Color::Rgb(20, 30, 60)),
@@ -63,6 +73,24 @@ pub fn highlight_style(ht: HighlightType) -> Style {
             .bg(Color::Rgb(60, 40, 10)),
         HighlightType::Starved => Style::default()
             .bg(Color::Rgb(50, 50, 10)),
+    }
+}
+
+/// Style for a mark badge glyph (small vim-mark letter shown on its tile).
+pub fn mark_badge_style() -> Style {
+    Style::default()
+        .fg(Color::Rgb(20, 18, 8))
+        .bg(Color::Rgb(212, 175, 55))
+        .add_modifier(Modifier::BOLD)
+}
+
+/// Map a flash animation kind to the highlight used to paint its tile.
+pub fn flash_highlight(kind: FlashKind) -> HighlightType {
+    match kind {
+        FlashKind::Placement => HighlightType::PlacementFlash,
+        FlashKind::Error => HighlightType::ErrorFlash,
+        FlashKind::Demolition => HighlightType::DemolitionFlash,
+        FlashKind::ContractComplete | FlashKind::ResearchComplete => HighlightType::ContractFlash,
     }
 }
 
@@ -85,16 +113,12 @@ pub fn resolve_highlight(
     visual_tiles: &[(usize, usize)],
     search_matches: &[(usize, usize)],
     search_current: Option<usize>,
-    flash_positions: &[(usize, usize, bool)], // (x, y, is_error)
+    flashes: &[Flash],
 ) -> Option<HighlightType> {
     // Check flashes first (highest priority)
-    for &(fx, fy, is_error) in flash_positions {
-        if fx == x && fy == y {
-            return Some(if is_error {
-                HighlightType::ErrorFlash
-            } else {
-                HighlightType::PlacementFlash
-            });
+    for flash in flashes {
+        if flash.x == x && flash.y == y {
+            return Some(flash_highlight(flash.kind));
         }
     }
 

@@ -20,6 +20,7 @@ use crate::vim::search::SearchState;
 pub enum Mode {
     Normal,
     Insert,
+    Replace,
     Visual,
     VisualLine,
     VisualBlock,
@@ -39,6 +40,8 @@ pub enum PopupKind {
     Market,
     Finance,
     Research,
+    Prestige,
+    Recipes,
 }
 
 /// Game mode: tutorial levels, campaign, or freeplay sandbox.
@@ -67,6 +70,8 @@ pub struct AppState {
     // -- Mode --
     pub mode: Mode,
     pub insert_facing: Facing,
+    /// Insert-mode category submenu currently open (e.g. "Power"), if any.
+    pub insert_category: Option<&'static str>,
 
     // -- Vim state --
     pub registers: RegisterStore,
@@ -86,6 +91,8 @@ pub struct AppState {
     pub animations: AnimationManager,
     pub popup: Option<PopupKind>,
     pub popup_scroll: usize,
+    /// Selection index inside interactive popups (research/contracts).
+    pub popup_cursor: usize,
 
     // -- Status / messaging --
     pub status_message: String,
@@ -99,6 +106,18 @@ pub struct AppState {
     // -- Economy --
     pub economy: crate::economy::ledger::Economy,
     pub loans: crate::economy::loans::LoanManager,
+    /// Per-resource output-bin totals at the last post_tick (delta detection
+    /// for auto-sell + contract deliveries).
+    pub delivered_snapshot: std::collections::HashMap<crate::resources::Resource, u64>,
+    /// Lifetime deliveries per resource (drives contract generation,
+    /// auto-accept, and scaling).
+    pub delivered_lifetime: std::collections::HashMap<crate::resources::Resource, u64>,
+    /// Sale income accumulated during the current economy cycle.
+    pub income_this_cycle: f64,
+    /// Sale income of the last completed cycle (finance popup).
+    pub income_last_cycle: f64,
+    /// Expense report of the last completed cycle (finance popup).
+    pub last_expense_report: crate::economy::expenses::ExpenseReport,
 
     // -- Contracts --
     pub contract_board: crate::contracts::board::ContractBoard,
@@ -150,6 +169,7 @@ impl AppState {
 
             mode: Mode::Menu,
             insert_facing: Facing::Right,
+            insert_category: None,
 
             registers: RegisterStore::new(),
             marks: MarkStore::new(),
@@ -166,6 +186,7 @@ impl AppState {
             animations: AnimationManager::new(),
             popup: None,
             popup_scroll: 0,
+            popup_cursor: 0,
 
             status_message: String::new(),
             status_error: false,
@@ -176,6 +197,11 @@ impl AppState {
 
             economy: crate::economy::ledger::Economy::new(crate::economy::ledger::Difficulty::Normal),
             loans: crate::economy::loans::LoanManager::new(crate::economy::ledger::Difficulty::Normal),
+            delivered_snapshot: std::collections::HashMap::new(),
+            delivered_lifetime: std::collections::HashMap::new(),
+            income_this_cycle: 0.0,
+            income_last_cycle: 0.0,
+            last_expense_report: crate::economy::expenses::ExpenseReport::default(),
             contract_board: crate::contracts::board::ContractBoard::new(),
             market: crate::market::prices::MarketState::new(),
             research: crate::research::tree::ResearchState::new(),

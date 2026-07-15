@@ -1033,6 +1033,28 @@ impl EntityType {
         }
     }
 
+    /// The resource an extractor building emits, if this is an extractor.
+    pub fn extracted_resource(&self) -> Option<Resource> {
+        match self {
+            Self::OreDeposit => Some(Resource::IronOre),
+            Self::CopperDeposit => Some(Resource::CopperOre),
+            Self::CoalDeposit => Some(Resource::Coal),
+            Self::StoneQuarry => Some(Resource::Stone),
+            Self::OilWell => Some(Resource::CrudeOil),
+            Self::WaterPump => Some(Resource::Water),
+            Self::GasExtractor => Some(Resource::NaturalGas),
+            Self::UraniumMine => Some(Resource::UraniumOre),
+            Self::SandExtractor => Some(Resource::QuartzSand),
+            Self::SulfurMine => Some(Resource::Sulfur),
+            Self::BauxiteMine => Some(Resource::Bauxite),
+            Self::LithiumExtractor => Some(Resource::LithiumBrine),
+            Self::RareEarthExtractor => Some(Resource::RareEarthOre),
+            Self::BiomassHarvester => Some(Resource::Biomass),
+            Self::GeothermalTap => Some(Resource::GeothermalSteam),
+            _ => None,
+        }
+    }
+
     pub fn power_required(&self) -> u32 {
         match self.building_kind() {
             BuildingKind::Extractor => 5,

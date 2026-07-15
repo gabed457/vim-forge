@@ -306,12 +306,20 @@ fn test_nonsquare_rotation_dimensions() {
 }
 
 /// 1×1 conveyor has input and output ports.
+/// Belts accept from behind and both sides (3 inputs) so lines can turn
+/// corners — matching `get_input_sides()` — and output forward (1 output).
 #[test]
 fn test_conveyor_has_ports() {
     let fp = BuildingFootprint::new_1x1_conveyor();
-    assert_eq!(fp.ports.len(), 2);
-    assert!(fp.ports.iter().any(|p| p.port_type.is_input()));
-    assert!(fp.ports.iter().any(|p| p.port_type.is_output()));
+    assert_eq!(fp.ports.len(), 4);
+    assert_eq!(fp.ports.iter().filter(|p| p.port_type.is_input()).count(), 3);
+    assert_eq!(fp.ports.iter().filter(|p| p.port_type.is_output()).count(), 1);
+    // No input from the front (the direction the belt outputs toward).
+    assert!(fp
+        .ports
+        .iter()
+        .filter(|p| p.port_type.is_input())
+        .all(|p| p.direction != Facing::Right));
 }
 
 /// 2D placement: non-square building rotation changes occupied tiles.

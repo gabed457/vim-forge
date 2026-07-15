@@ -33,6 +33,9 @@ pub enum CompletionCondition {
     Custom(String),
 }
 
+/// The pseudo-level number used for the freeplay sandbox map.
+pub const FREEPLAY_LEVEL: usize = 31;
+
 pub fn get_level(number: usize) -> Option<LevelConfig> {
     match number {
         1 => Some(super::level_01::config()),
@@ -48,11 +51,28 @@ pub fn get_level(number: usize) -> Option<LevelConfig> {
         11 => Some(super::level_11::config()),
         12 => Some(super::level_12::config()),
         13 => Some(super::level_13::config()),
-        14 => Some(super::freeplay::config()),
+        14 => Some(super::level_14::config()),
+        15 => Some(super::level_15::config()),
+        16 => Some(super::level_16::config()),
+        17 => Some(super::level_17::config()),
+        18 => Some(super::level_18::config()),
+        19 => Some(super::level_19::config()),
+        20 => Some(super::level_20::config()),
+        21 => Some(super::level_21::config()),
+        22 => Some(super::level_22::config()),
+        23 => Some(super::level_23::config()),
+        24 => Some(super::level_24::config()),
+        25 => Some(super::level_25::config()),
+        26 => Some(super::level_26::config()),
+        27 => Some(super::level_27::config()),
+        28 => Some(super::level_28::config()),
+        29 => Some(super::level_29::config()),
+        30 => Some(super::level_30::config()),
+        31 => Some(super::freeplay::config()),
         _ => None,
     }
 }
 
 pub fn total_levels() -> usize {
-    13
+    30
 }

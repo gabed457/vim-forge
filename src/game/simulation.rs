@@ -2,13 +2,15 @@ use std::time::{Duration, Instant};
 
 use hecs::World;
 
-use crate::ecs::systems::{self, SimConfig};
+use crate::ecs::systems::{self, SimConfig, TickReport};
 use crate::map::grid::Map;
 
 pub struct Simulation {
     pub config: SimConfig,
     pub speed: u32, // ticks per second, 0 = paused
     pub tick_count: u64,
+    /// Side effects of the most recent tick (pollution, power state).
+    pub last_report: TickReport,
     last_tick: Instant,
     last_speed_before_pause: u32,
 }
@@ -19,6 +21,7 @@ impl Simulation {
             config: SimConfig::default_config(),
             speed: 5,
             tick_count: 0,
+            last_report: TickReport::default(),
             last_tick: Instant::now(),
             last_speed_before_pause: 5,
         }
@@ -72,7 +75,7 @@ impl Simulation {
     }
 
     fn do_tick(&mut self, world: &mut World, map: &mut Map) {
-        systems::tick(world, map, &self.config);
+        self.last_report = systems::tick_ex(world, map, &self.config, self.tick_count);
         self.tick_count += 1;
         self.last_tick = Instant::now();
     }

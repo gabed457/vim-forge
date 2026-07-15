@@ -174,6 +174,36 @@ fn test_splitter_alternates() {
 }
 
 #[test]
+fn test_smelter_buffers_two_ingots_through_one_port_for_steel() {
+    let mut world = World::new();
+    let mut map = Map::new(20, 10);
+    let config = setup_config();
+
+    // Smelter (3x3) at (5,2): input port (5,3). smelt_steel needs 2 ingots.
+    let smelter = place(&mut world, &mut map, 5, 2, EntityType::Smelter, Facing::Right);
+    map.set_resource(5, 3, Resource::IronIngot);
+    systems::tick(&mut world, &mut map, &config);
+    {
+        let proc = world.get::<&Processing>(smelter).unwrap();
+        assert_eq!(proc.input_a, Some(Resource::IronIngot));
+        assert!(
+            !proc.is_processing(),
+            "one ingot alone must not start the 2-ingot steel recipe"
+        );
+    }
+    map.set_resource(5, 3, Resource::IronIngot);
+    for _ in 0..10 {
+        systems::tick(&mut world, &mut map, &config);
+    }
+    let proc = world.get::<&Processing>(smelter).unwrap();
+    assert_eq!(
+        proc.output,
+        Some(Resource::Steel),
+        "two buffered ingots should smelt into steel"
+    );
+}
+
+#[test]
 fn test_full_chain_ore_to_output() {
     let mut world = World::new();
     let mut map = Map::new(30, 10);

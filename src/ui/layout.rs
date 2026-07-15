@@ -13,20 +13,33 @@ const TUTORIAL_BAR_HEIGHT: u16 = 3;
 /// Status bar height (always 1 row at the bottom).
 const STATUS_BAR_HEIGHT: u16 = 1;
 
+/// Terminal heights below this collapse the tutorial bar so the grid keeps room.
+const MIN_HEIGHT_FOR_TUTORIAL: u16 = 12;
+
+/// Terminal widths below this collapse the sidebar so the grid keeps room.
+const MIN_WIDTH_FOR_SIDEBAR: u16 = 60;
+
 /// The computed ratatui areas for each part of the UI.
 pub struct LayoutAreas {
-    /// Tutorial hint bar at the top (2 rows). None if tutorial is hidden.
+    /// Tutorial hint bar at the top (3 rows). None if tutorial is hidden.
     pub tutorial_bar: Option<Rect>,
     /// Main game grid area (where tiles are rendered).
     pub game_grid: Rect,
-    /// Sidebar on the right (16 cols). None if sidebar is hidden.
+    /// Sidebar on the right (20 cols). None if sidebar is hidden.
     pub sidebar: Option<Rect>,
     /// Status bar at the bottom (1 row).
     pub status_bar: Rect,
 }
 
 /// Compute the layout areas from the terminal frame size and display options.
+///
+/// Degrades gracefully on small terminals: the tutorial bar and sidebar are
+/// dropped before the game grid is ever squeezed below usability.
 pub fn compute_layout(frame_size: Rect, show_sidebar: bool, show_tutorial: bool) -> LayoutAreas {
+    // Graceful degradation on cramped terminals.
+    let show_tutorial = show_tutorial && frame_size.height >= MIN_HEIGHT_FOR_TUTORIAL;
+    let show_sidebar = show_sidebar && frame_size.width >= MIN_WIDTH_FOR_SIDEBAR;
+
     // Step 1: Split into main area (top) and status bar (bottom, 1 row).
     let outer_chunks = Layout::default()
         .direction(Direction::Vertical)

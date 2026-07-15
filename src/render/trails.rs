@@ -7,6 +7,17 @@ pub struct Trail {
     pub frames_remaining: u8,
 }
 
+/// Lifetime of a trail in frames. Wakes fade linearly over this window.
+pub const TRAIL_FRAMES: u8 = 2;
+
+impl Trail {
+    /// Fading intensity 0.0..1.0: fresh trails glow, old ones dissipate.
+    /// Used to blend the resource color into the belt background as a wake.
+    pub fn intensity(&self) -> f64 {
+        (self.frames_remaining.min(TRAIL_FRAMES) as f64 / TRAIL_FRAMES as f64) * 0.45
+    }
+}
+
 /// Manages all active trails.
 pub struct TrailSystem {
     trails: Vec<Trail>,
@@ -27,7 +38,7 @@ impl TrailSystem {
             x,
             y,
             color: resource_color,
-            frames_remaining: 2,
+            frames_remaining: TRAIL_FRAMES,
         });
     }
 

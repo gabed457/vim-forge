@@ -65,8 +65,13 @@ impl BuildingFootprint {
         }
     }
 
-    /// 1×1 conveyor: input from behind (Left), output forward (Right).
-    /// Ports rotate with facing via `rotate_to()`.
+    /// 1×1 conveyor: inputs from behind (Left) and both sides (Up/Down),
+    /// output forward (Right). Ports rotate with facing via `rotate_to()`.
+    ///
+    /// Belts accept items from the back and from the sides (but never from
+    /// the front) so that conveyor lines can turn corners. This matches
+    /// `crate::resources::get_input_sides()`, which has always declared
+    /// three input sides for belts.
     pub fn new_1x1_conveyor() -> Self {
         BuildingFootprint {
             width: 1,
@@ -78,6 +83,20 @@ impl BuildingFootprint {
                     direction: Facing::Left,
                     port_type: PortType::SolidInput,
                     port_index: 0,
+                },
+                PortDefinition {
+                    offset_x: 0,
+                    offset_y: 0,
+                    direction: Facing::Up,
+                    port_type: PortType::SolidInput,
+                    port_index: 1,
+                },
+                PortDefinition {
+                    offset_x: 0,
+                    offset_y: 0,
+                    direction: Facing::Down,
+                    port_type: PortType::SolidInput,
+                    port_index: 2,
                 },
                 PortDefinition {
                     offset_x: 0,

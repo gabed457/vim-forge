@@ -106,9 +106,9 @@ pub fn config() -> LevelConfig {
             "Move to the first cluster. Press ma to set mark 'a' at your cursor position.",
             "Visit each cluster corner and set marks: ma, mb, mc, md. Press 'a to jump to mark 'a'.",
             "Each cluster needs more belts and a smelter. Use i, c for belts, k then s for smelters.",
-            "Use 'a/'b/'c/'d to hop between clusters as you build. Produce 4 widgets to win!",
+            "Use 'a/'b/'c/'d to hop between clusters as you build. Deliver 4 ingots to win!",
         ],
         allowed_commands: None,
-        completion: CompletionCondition::ProduceWidgets(4),
+        completion: CompletionCondition::DeliverIngots(4),
     }
 }

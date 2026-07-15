@@ -137,6 +137,79 @@ pub fn render_sidebar(frame: &mut Frame, area: Rect, app: &AppState) {
 
     lines.push(Line::from(""));
 
+    // -- Economy / research / pollution / power --
+    lines.push(section_header("Factory"));
+    lines.push(Line::from(vec![
+        Span::styled("Cash: ", Style::default().fg(Color::Rgb(140, 140, 140))),
+        Span::styled(
+            if app.economy.cash.abs() >= 1_000_000_000_000 {
+                "$\u{221E}".to_string()
+            } else {
+                format!("${}", app.economy.cash)
+            },
+            Style::default()
+                .fg(Color::Rgb(80, 220, 80))
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    match app.research.current {
+        Some(id) => {
+            let tech = crate::research::tree::get_tech(id);
+            lines.push(Line::from(vec![
+                Span::styled("R&D:  ", Style::default().fg(Color::Rgb(140, 140, 140))),
+                Span::styled(
+                    format!("{:.12}", tech.name),
+                    Style::default().fg(Color::Rgb(80, 200, 220)),
+                ),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("      ", Style::default()),
+                Span::styled(
+                    format!("{:.0}%", app.research.progress_fraction() * 100.0),
+                    Style::default().fg(Color::Rgb(80, 200, 220)),
+                ),
+            ]));
+        }
+        None => {
+            lines.push(Line::from(vec![
+                Span::styled("R&D:  ", Style::default().fg(Color::Rgb(140, 140, 140))),
+                Span::styled("idle", Style::default().fg(Color::Rgb(90, 90, 100))),
+            ]));
+        }
+    }
+    let pollution = app.pollution.level;
+    let pollution_color = if pollution >= 500.0 {
+        Color::Rgb(220, 60, 60)
+    } else if pollution >= 200.0 {
+        Color::Rgb(220, 180, 60)
+    } else {
+        Color::Rgb(120, 180, 120)
+    };
+    lines.push(Line::from(vec![
+        Span::styled("Poll: ", Style::default().fg(Color::Rgb(140, 140, 140))),
+        Span::styled(
+            format!("{:.0}", pollution),
+            Style::default().fg(pollution_color),
+        ),
+    ]));
+    let power = &app.simulation.last_report;
+    if power.generators_present > 0 {
+        let power_color = if power.powered {
+            Color::Rgb(60, 220, 60)
+        } else {
+            Color::Rgb(220, 60, 60)
+        };
+        lines.push(Line::from(vec![
+            Span::styled("Pwr:  ", Style::default().fg(Color::Rgb(140, 140, 140))),
+            Span::styled(
+                format!("{:.0}/{:.0}MW", power.power_demand, power.power_supply),
+                Style::default().fg(power_color),
+            ),
+        ]));
+    }
+
+    lines.push(Line::from(""));
+
     // -- Registers (up to 5 most recent) --
     let reg_list = app.registers.list();
     if !reg_list.is_empty() {

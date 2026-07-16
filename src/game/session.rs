@@ -7,7 +7,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{AppState, GameMode, Mode, PopupKind};
+use crate::app::{AppState, GameMode, MenuScreen, Mode, OverlayCard, PopupKind, TitleAction};
 use crate::commands::Command;
 use crate::ecs::components::{EntityKind, FacingComponent, OutputCounter};
 use crate::input::handler::InputState;
@@ -27,6 +27,10 @@ pub struct GameSession {
     pub term_height: usize,
     /// Set to true when the player quits.
     pub quit: bool,
+    /// Write campaign progress to the default save on level completion.
+    /// Off by default so headless tests never touch the player's save;
+    /// main.rs enables it for real play.
+    pub autosave_enabled: bool,
     /// Status-message expiry tracking (post_tick clears stale messages).
     last_status: String,
     status_age: u32,
@@ -37,6 +41,16 @@ impl GameSession {
         let mut app = AppState::new(80, 50);
         app.mode = Mode::Menu;
         app.has_save = save::default_save_path().exists();
+        // Read campaign progress from the save (menu N/30 readout and
+        // level-select locks). Corrupt/missing saves are simply ignored.
+        if app.has_save {
+            if let Ok(data) = save::load_game(&save::default_save_path()) {
+                if let Some(ts) = data.tutorial_state {
+                    app.campaign_completed = ts.levels_completed;
+                    app.saved_level = Some(ts.current_level);
+                }
+            }
+        }
         let initial_cols = term_width / 2;
         let initial_rows = term_height.saturating_sub(1);
         GameSession {
@@ -47,6 +61,7 @@ impl GameSession {
             term_width,
             term_height,
             quit: false,
+            autosave_enabled: false,
             last_status: String::new(),
             status_age: 0,
         }
@@ -60,11 +75,33 @@ impl GameSession {
     }
 
     pub fn resize_viewport(&mut self) {
-        let sidebar = if self.app.show_sidebar { 20 } else { 0 };
+        // Horizontal: match the real layout — the Command Dock is 30 columns
+        // and only shows on terminals >= 140 wide (ui::layout), so the grid
+        // rect the renderer receives is exactly term_width - dock. Keeping
+        // these in sync makes centering pads and the fitted zoom scale exact
+        // (a stale 20-col sidebar here used to shift the map off-center and
+        // clip its right edge at wide sizes).
+        let sidebar = if self.app.show_sidebar
+            && self.term_width >= crate::ui::layout::MIN_WIDTH_FOR_DOCK as usize
+        {
+            crate::ui::layout::DOCK_WIDTH as usize
+        } else {
+            0
+        };
+        // Vertical: legacy numbers (1 status row + 3 tutorial rows). The real
+        // top bar is 2 rows, but page-scroll sizes (Ctrl-d/f = half/full page)
+        // derive from this height and are part of the game's muscle-memory
+        // contract, so it stays put; the renderer derives row coverage from
+        // the actual rect, so the 1-row difference only affects centering by
+        // at most one row.
         let tutorial = if self.app.show_tutorial { 3 } else { 0 };
         let cols = self.term_width.saturating_sub(sidebar) / 2;
         let rows = self.term_height.saturating_sub(1 + tutorial);
         self.viewport.resize(cols, rows);
+        // Re-fit the tile scale to the new rect (no-op while the player has
+        // zoomed manually with zi/zo).
+        self.viewport
+            .auto_fit(self.app.map.width, self.app.map.height);
     }
 
     /// Load a level (tutorial/campaign) and reset per-level state.
@@ -118,6 +155,11 @@ impl GameSession {
             self.input.cursor_x = 0;
             self.input.cursor_y = 0;
             self.resize_viewport();
+            // New level: clear any manual zoom and fit the whole map.
+            self.viewport
+                .reset_zoom_for_level(cfg.map_width, cfg.map_height);
+            // Level intro card (fall-through: any key dismisses AND executes).
+            self.app.overlay = Some(OverlayCard::intro(level));
         }
     }
 
@@ -175,6 +217,9 @@ impl GameSession {
             self.input.cursor_x = 0;
             self.input.cursor_y = 0;
             self.resize_viewport();
+            self.viewport
+                .reset_zoom_for_level(cfg.map_width, cfg.map_height);
+            self.app.overlay = None;
         }
     }
 
@@ -247,6 +292,13 @@ impl GameSession {
             return true;
         }
 
+        // Overlay cards (level intro / complete / finale) use FALL-THROUGH
+        // semantics: any key dismisses the card AND still executes normally,
+        // so muscle memory and headless tests are never interrupted.
+        if let Some(mut card) = self.app.overlay.take() {
+            self.app.overlay = card.followup.take().map(|b| *b);
+        }
+
         // Popup dismiss / scroll / interactive selection
         if let Some(kind) = self.app.popup.clone() {
             match key.code {
@@ -312,31 +364,9 @@ impl GameSession {
             return false;
         }
 
-        // Main menu
+        // Main menu (Title / LevelSelect / Help screens)
         if self.app.mode == Mode::Menu {
-            match key.code {
-                KeyCode::Char('1') => {
-                    self.start_level(1);
-                }
-                KeyCode::Char('2') => {
-                    if self.app.freeplay_unlocked {
-                        self.start_freeplay();
-                    }
-                }
-                KeyCode::Char('3') => {
-                    if self.app.has_save {
-                        if let Ok(data) = save::load_game(&save::default_save_path()) {
-                            self.load_save_data(&data);
-                        }
-                    }
-                }
-                KeyCode::Char('4') | KeyCode::Char('q') => {
-                    self.quit = true;
-                    return true;
-                }
-                _ => {}
-            }
-            return false;
+            return self.handle_menu_key(key);
         }
 
         // Feed key to the input handler / vim parser
@@ -502,21 +532,46 @@ impl GameSession {
                     }
                 }
                 Command::CmdFreeplay => {
-                    if self.app.freeplay_unlocked {
-                        self.start_freeplay();
-                    } else {
-                        self.app.status_message =
-                            "Complete the campaign to unlock Freeplay".to_string();
-                        self.app.status_error = true;
-                    }
+                    // Sandbox is always available — no campaign gate.
+                    self.start_freeplay();
                 }
                 Command::CmdMenu => {
+                    // Fold live campaign progress into the menu's view of the
+                    // world before dropping the tutorial state.
+                    if let Some(ref tut) = self.tutorial {
+                        for l in &tut.levels_completed {
+                            if !self.app.campaign_completed.contains(l) {
+                                self.app.campaign_completed.push(*l);
+                            }
+                        }
+                        self.app.campaign_completed.sort_unstable();
+                    }
                     self.app.mode = Mode::Menu;
+                    self.app.menu_screen = MenuScreen::Title;
+                    self.app.menu_cursor = 0;
+                    self.app.overlay = None;
                     self.tutorial = None;
                 }
                 Command::CmdNoHighlight => {
                     self.input.search.clear();
                     self.app.search.clear();
+                }
+                // --- Viewport zoom (zi/zo/zf) ---
+                Command::ZoomIn => {
+                    self.viewport
+                        .zoom_in(self.app.map.width, self.app.map.height);
+                    self.app.status_message = format!("zoom: {}x", self.viewport.scale);
+                }
+                Command::ZoomOut => {
+                    self.viewport
+                        .zoom_out(self.app.map.width, self.app.map.height);
+                    self.app.status_message = format!("zoom: {}x", self.viewport.scale);
+                }
+                Command::ZoomFit => {
+                    self.viewport
+                        .zoom_fit(self.app.map.width, self.app.map.height);
+                    self.app.status_message =
+                        format!("zoom: fit ({}x)", self.viewport.scale);
                 }
                 // --- Viewport scroll commands (zz/zt/zb, Ctrl-d/u/f/b) ---
                 // The input handler already moved the cursor / its mirrored
@@ -566,6 +621,176 @@ impl GameSession {
         let session_set_message = self.app.status_message != status_before_commands;
         self.sync_after_key(session_set_message);
         false
+    }
+
+    // -------------------------------------------------------------------
+    // Menu screens (Title / LevelSelect / Help)
+    // -------------------------------------------------------------------
+
+    /// Handle a key while in the menu. Returns true when the player quit.
+    fn handle_menu_key(&mut self, key: KeyEvent) -> bool {
+        match self.app.menu_screen {
+            MenuScreen::Title => self.handle_title_key(key),
+            MenuScreen::LevelSelect => {
+                self.handle_level_select_key(key);
+                false
+            }
+            MenuScreen::Help => {
+                // Any of the usual "back" keys returns to the title.
+                if matches!(
+                    key.code,
+                    KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('h') | KeyCode::Enter
+                ) {
+                    self.app.menu_screen = MenuScreen::Title;
+                    self.app.menu_cursor = 0;
+                }
+                false
+            }
+        }
+    }
+
+    fn handle_title_key(&mut self, key: KeyEvent) -> bool {
+        let entries = self.app.title_entries();
+        let n = entries.len();
+        match key.code {
+            // Quick keys: number/letter shortcuts fire immediately.
+            KeyCode::Char('1') => {
+                // Fresh campaign run from level 1 (Enter on Campaign opens
+                // the level-select grid instead).
+                self.start_level(1);
+                false
+            }
+            KeyCode::Char('2') => {
+                // Sandbox is ALWAYS unlocked.
+                self.start_freeplay();
+                false
+            }
+            KeyCode::Char('3') => {
+                self.menu_continue();
+                false
+            }
+            KeyCode::Char('4') | KeyCode::Char('q') => {
+                self.quit = true;
+                true
+            }
+            KeyCode::Char('h') => {
+                self.app.menu_screen = MenuScreen::Help;
+                false
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.app.menu_cursor = (self.app.menu_cursor + 1) % n.max(1);
+                false
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.app.menu_cursor = self.app.menu_cursor.checked_sub(1).unwrap_or(n - 1);
+                false
+            }
+            KeyCode::Enter => {
+                let action = entries
+                    .get(self.app.menu_cursor.min(n.saturating_sub(1)))
+                    .map(|e| e.action);
+                match action {
+                    Some(TitleAction::Campaign) => {
+                        // Open the level-select grid with the cursor on the
+                        // next level to play (furthest completed + 1).
+                        self.app.menu_screen = MenuScreen::LevelSelect;
+                        self.app.menu_cursor =
+                            self.app.furthest_campaign_level().min(29);
+                    }
+                    Some(TitleAction::Sandbox) => self.start_freeplay(),
+                    Some(TitleAction::Continue) => self.menu_continue(),
+                    Some(TitleAction::Help) => self.app.menu_screen = MenuScreen::Help,
+                    Some(TitleAction::Quit) => {
+                        self.quit = true;
+                        return true;
+                    }
+                    None => {}
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_level_select_key(&mut self, key: KeyEvent) {
+        // 5 columns x 6 act rows; menu_cursor is 0..29 (level - 1).
+        let cur = self.app.menu_cursor.min(29);
+        let (col, row) = (cur % 5, cur / 5);
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.app.menu_screen = MenuScreen::Title;
+                self.app.menu_cursor = 0;
+            }
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.app.menu_cursor = row * 5 + col.saturating_sub(1);
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.app.menu_cursor = row * 5 + (col + 1).min(4);
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                self.app.menu_cursor = (row + 1).min(5) * 5 + col;
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.app.menu_cursor = row.saturating_sub(1) * 5 + col;
+            }
+            KeyCode::Char('g') => self.app.menu_cursor = 0,
+            KeyCode::Char('G') => self.app.menu_cursor = 29,
+            KeyCode::Enter => {
+                let level = cur + 1;
+                if self.app.is_level_unlocked(level) {
+                    // Carry saved campaign progress into the new run so
+                    // completing this level doesn't reset furthest-level.
+                    let completed = self.app.campaign_completed.clone();
+                    self.tutorial = Some(TutorialState::new_with_progress(level, completed));
+                    self.start_level(level);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Continue: load the default save, if present.
+    fn menu_continue(&mut self) {
+        if self.app.has_save {
+            if let Ok(data) = save::load_game(&save::default_save_path()) {
+                self.load_save_data(&data);
+                // Re-show the intro card for the level being resumed.
+                if let Some(level) = self.app.current_level {
+                    if config::get_level(level).is_some() && level != config::FREEPLAY_LEVEL {
+                        self.app.overlay = Some(OverlayCard::intro(level));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Silently write campaign progress to the default save (called on every
+    /// level completion). Merges with any progress already on disk so a
+    /// replay of an early level can never lose furthest-level progress.
+    fn autosave_campaign(&mut self) {
+        if !self.autosave_enabled {
+            return;
+        }
+        let mut merged = self.app.campaign_completed.clone();
+        if let Some(ref tut) = self.tutorial {
+            for l in &tut.levels_completed {
+                if !merged.contains(l) {
+                    merged.push(*l);
+                }
+            }
+        }
+        merged.sort_unstable();
+        merged.dedup();
+        self.app.campaign_completed = merged.clone();
+
+        let mut data = self.build_save_data();
+        if let Some(ref mut ts) = data.tutorial_state {
+            ts.levels_completed = merged;
+        }
+        if save::save_game(&data, &save::default_save_path()).is_ok() {
+            self.app.has_save = true;
+            self.app.saved_level = self.tutorial.as_ref().map(|t| t.current_level);
+        }
     }
 
     /// Synchronize AppState mirrors of InputState after key handling.
@@ -669,9 +894,23 @@ impl GameSession {
     /// Per-tick bookkeeping: tutorial completion, day/night, economy cycle,
     /// and campaign level advancement.
     fn post_tick(&mut self) {
+        // Snapshot per-level stats BEFORE the completion check (which resets
+        // them) so the level-complete card can show them.
+        let edits_this_level = self.tutorial.as_ref().map(|t| t.edit_count).unwrap_or(0);
+
         let mut level_completed = false;
         if let Some(ref mut tut) = self.tutorial {
             level_completed = Self::check_tutorial_completion(&self.app, tut);
+        }
+
+        // Overlay cards fade on their own after ~300 ticks (any key also
+        // dismisses them, falling through to normal handling).
+        if let Some(ref mut card) = self.app.overlay {
+            if card.ticks_left == 0 {
+                self.app.overlay = card.followup.take().map(|b| *b);
+            } else {
+                card.ticks_left -= 1;
+            }
         }
 
         // Status messages expire instead of lingering forever.
@@ -707,6 +946,7 @@ impl GameSession {
         }
 
         if level_completed {
+            let output_this_level = self.output_totals().3;
             let next = self.tutorial.as_ref().map(|t| t.current_level);
             if let Some(level) = next {
                 if config::get_level(level).is_some() && level != config::FREEPLAY_LEVEL {
@@ -719,13 +959,26 @@ impl GameSession {
                     );
                     self.app.animations.flash_status_success();
                     self.start_level(level);
+                    // start_level queued the next level's intro card; show
+                    // the LEVEL COMPLETE card first, then that intro.
+                    let intro = self.app.overlay.take();
+                    self.app.overlay = Some(OverlayCard::complete(
+                        done,
+                        edits_this_level,
+                        output_this_level,
+                        intro,
+                    ));
                 } else {
                     self.app.freeplay_unlocked = true;
                     self.app.animations.flash_status_success();
                     self.app.status_message =
-                        "*** CAMPAIGN COMPLETE — you know vim! *** Freeplay unlocked: type :freeplay"
+                        "*** CAMPAIGN COMPLETE — you know vim! *** Sandbox awaits: type :freeplay"
                             .to_string();
+                    self.app.overlay =
+                        Some(OverlayCard::finale(edits_this_level, output_this_level));
                 }
+                // Campaign progress autosaves silently on every completion.
+                self.autosave_campaign();
             }
         }
     }
@@ -1190,6 +1443,8 @@ impl GameSession {
         };
         app.simulation.config.freeplay_power = app.game_mode == GameMode::Freeplay;
 
+        app.overlay = None;
+
         // Restore tutorial progress
         if let Some(ref ts) = data.tutorial_state {
             let mut tut =
@@ -1197,6 +1452,13 @@ impl GameSession {
             tut.current_level = ts.current_level;
             self.tutorial = Some(tut);
             self.app.current_level = Some(ts.current_level);
+            self.app.saved_level = Some(ts.current_level);
+            for l in &ts.levels_completed {
+                if !self.app.campaign_completed.contains(l) {
+                    self.app.campaign_completed.push(*l);
+                }
+            }
+            self.app.campaign_completed.sort_unstable();
             self.app.show_tutorial = true;
             self.app.freeplay_unlocked = self
                 .tutorial

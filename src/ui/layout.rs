@@ -1,31 +1,38 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::Rect;
 
 /// Minimum terminal dimensions.
 pub const MIN_TERMINAL_WIDTH: u16 = 80;
 pub const MIN_TERMINAL_HEIGHT: u16 = 24;
 
-/// Sidebar width in columns.
-const SIDEBAR_WIDTH: u16 = 20;
+/// Right-hand Command Dock width in columns.
+pub const DOCK_WIDTH: u16 = 30;
 
-/// Tutorial hint bar height in rows.
-const TUTORIAL_BAR_HEIGHT: u16 = 3;
+/// The dock only appears on wide terminals; below this it hides entirely so
+/// the grid keeps every column.
+pub const MIN_WIDTH_FOR_DOCK: u16 = 140;
+
+/// Top bar height in rows (level chip + objective row, hint carousel row).
+pub const TOP_BAR_HEIGHT: u16 = 2;
+
+/// Below this terminal height the top bar collapses to a single row.
+pub const MIN_HEIGHT_FOR_FULL_TOP_BAR: u16 = 30;
 
 /// Status bar height (always 1 row at the bottom).
 const STATUS_BAR_HEIGHT: u16 = 1;
 
-/// Terminal heights below this collapse the tutorial bar so the grid keeps room.
+/// Terminal heights below this drop the top bar so the grid keeps room.
 const MIN_HEIGHT_FOR_TUTORIAL: u16 = 12;
 
-/// Terminal widths below this collapse the sidebar so the grid keeps room.
-const MIN_WIDTH_FOR_SIDEBAR: u16 = 60;
-
 /// The computed ratatui areas for each part of the UI.
+///
+/// Field names are kept stable (`tutorial_bar` = the 2-row top bar,
+/// `sidebar` = the 30-col Command Dock) so existing call sites keep working.
 pub struct LayoutAreas {
-    /// Tutorial hint bar at the top (3 rows). None if tutorial is hidden.
+    /// Top bar (2 rows; 1 row on short terminals). None if hidden.
     pub tutorial_bar: Option<Rect>,
-    /// Main game grid area (where tiles are rendered).
+    /// Main game grid area, edge to edge (where tiles are rendered).
     pub game_grid: Rect,
-    /// Sidebar on the right (20 cols). None if sidebar is hidden.
+    /// Command Dock on the right (30 cols, only on wide terminals). None if hidden.
     pub sidebar: Option<Rect>,
     /// Status bar at the bottom (1 row).
     pub status_bar: Rect,
@@ -33,51 +40,47 @@ pub struct LayoutAreas {
 
 /// Compute the layout areas from the terminal frame size and display options.
 ///
-/// Degrades gracefully on small terminals: the tutorial bar and sidebar are
-/// dropped before the game grid is ever squeezed below usability.
+/// Layout contract:
+/// - Top bar: 2 rows (1 row below `MIN_HEIGHT_FOR_FULL_TOP_BAR`, dropped
+///   entirely below `MIN_HEIGHT_FOR_TUTORIAL`).
+/// - Command Dock: 30 columns on the right, only when width >= 140.
+/// - Status bar: 1 row at the bottom.
+/// - The grid gets ALL remaining cells, edge to edge — no gaps.
 pub fn compute_layout(frame_size: Rect, show_sidebar: bool, show_tutorial: bool) -> LayoutAreas {
     // Graceful degradation on cramped terminals.
-    let show_tutorial = show_tutorial && frame_size.height >= MIN_HEIGHT_FOR_TUTORIAL;
-    let show_sidebar = show_sidebar && frame_size.width >= MIN_WIDTH_FOR_SIDEBAR;
-
-    // Step 1: Split into main area (top) and status bar (bottom, 1 row).
-    let outer_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(STATUS_BAR_HEIGHT),
-        ])
-        .split(frame_size);
-
-    let main_area = outer_chunks[0];
-    let status_bar = outer_chunks[1];
-
-    // Step 2: Optionally split tutorial bar from the top of the main area.
-    let (tutorial_bar, content_area) = if show_tutorial {
-        let tutorial_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(TUTORIAL_BAR_HEIGHT),
-                Constraint::Min(1),
-            ])
-            .split(main_area);
-        (Some(tutorial_chunks[0]), tutorial_chunks[1])
+    let show_top = show_tutorial && frame_size.height >= MIN_HEIGHT_FOR_TUTORIAL;
+    let top_h = if !show_top {
+        0
+    } else if frame_size.height >= MIN_HEIGHT_FOR_FULL_TOP_BAR {
+        TOP_BAR_HEIGHT
     } else {
-        (None, main_area)
+        1
+    };
+    let show_dock = show_sidebar && frame_size.width >= MIN_WIDTH_FOR_DOCK;
+    let dock_w = if show_dock { DOCK_WIDTH } else { 0 };
+
+    let x = frame_size.x;
+    let y = frame_size.y;
+    let w = frame_size.width;
+    let h = frame_size.height;
+
+    let status_bar = Rect::new(x, y + h.saturating_sub(STATUS_BAR_HEIGHT), w, STATUS_BAR_HEIGHT);
+
+    let tutorial_bar = if top_h > 0 {
+        Some(Rect::new(x, y, w, top_h))
+    } else {
+        None
     };
 
-    // Step 3: Optionally split sidebar from the right of the content area.
-    let (game_grid, sidebar) = if show_sidebar {
-        let sidebar_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(1),
-                Constraint::Length(SIDEBAR_WIDTH),
-            ])
-            .split(content_area);
-        (sidebar_chunks[0], Some(sidebar_chunks[1]))
+    // Middle band: everything between the top bar and the status bar.
+    let mid_y = y + top_h;
+    let mid_h = h.saturating_sub(top_h + STATUS_BAR_HEIGHT).max(1);
+
+    let game_grid = Rect::new(x, mid_y, w.saturating_sub(dock_w).max(1), mid_h);
+    let sidebar = if show_dock {
+        Some(Rect::new(x + w.saturating_sub(dock_w), mid_y, dock_w, mid_h))
     } else {
-        (content_area, None)
+        None
     };
 
     LayoutAreas {

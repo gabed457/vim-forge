@@ -52,6 +52,98 @@ pub enum GameMode {
     Freeplay,
 }
 
+/// Which screen the menu is showing while `mode == Mode::Menu`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuScreen {
+    Title,
+    LevelSelect,
+    Help,
+}
+
+/// What a title-screen entry does when confirmed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TitleAction {
+    Campaign,
+    Sandbox,
+    Continue,
+    Help,
+    Quit,
+}
+
+/// One selectable entry on the title screen.
+pub struct TitleEntry {
+    pub key: char,
+    pub name: &'static str,
+    pub sub: String,
+    pub action: TitleAction,
+}
+
+/// The kind of full-screen overlay card being shown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OverlayKind {
+    LevelIntro,
+    LevelComplete,
+    CampaignFinale,
+}
+
+/// A full-screen overlay card (level intro / level complete / finale).
+///
+/// FALL-THROUGH semantics: any key dismisses the card AND still executes
+/// normally, so overlays never eat input (see GameSession::handle_key).
+/// Cards also expire on their own after `ticks_left` simulation ticks.
+#[derive(Clone, Debug)]
+pub struct OverlayCard {
+    pub kind: OverlayKind,
+    /// The level the card is about (the completed level for LevelComplete).
+    pub level: usize,
+    /// Edits made during the completed level (LevelComplete/Finale).
+    pub edits: usize,
+    /// Total output delivered when the level completed.
+    pub output: u64,
+    /// Auto-expiry countdown in simulation ticks.
+    pub ticks_left: u32,
+    /// Card to show after this one is dismissed (complete -> next intro).
+    pub followup: Option<Box<OverlayCard>>,
+}
+
+/// Default overlay lifetime in simulation ticks (~300 per the design spec).
+pub const OVERLAY_TICKS: u32 = 300;
+
+impl OverlayCard {
+    pub fn intro(level: usize) -> Self {
+        OverlayCard {
+            kind: OverlayKind::LevelIntro,
+            level,
+            edits: 0,
+            output: 0,
+            ticks_left: OVERLAY_TICKS,
+            followup: None,
+        }
+    }
+
+    pub fn complete(level: usize, edits: usize, output: u64, followup: Option<OverlayCard>) -> Self {
+        OverlayCard {
+            kind: OverlayKind::LevelComplete,
+            level,
+            edits,
+            output,
+            ticks_left: OVERLAY_TICKS,
+            followup: followup.map(Box::new),
+        }
+    }
+
+    pub fn finale(edits: usize, output: u64) -> Self {
+        OverlayCard {
+            kind: OverlayKind::CampaignFinale,
+            level: 30,
+            edits,
+            output,
+            ticks_left: OVERLAY_TICKS,
+            followup: None,
+        }
+    }
+}
+
 /// Central application state.
 pub struct AppState {
     // -- Core game data --
@@ -100,8 +192,21 @@ pub struct AppState {
 
     // -- Game progression --
     pub current_level: Option<usize>,
+    /// Kept for save compatibility; Sandbox is ALWAYS available regardless.
     pub freeplay_unlocked: bool,
     pub has_save: bool,
+    /// Campaign levels ever completed (union of live progress and the save
+    /// on disk); drives the menu's N/30 readout and level-select locks.
+    pub campaign_completed: Vec<usize>,
+    /// The level the save on disk was parked on (Continue readout).
+    pub saved_level: Option<usize>,
+
+    // -- Menu state --
+    pub menu_screen: MenuScreen,
+    pub menu_cursor: usize,
+
+    // -- Overlay cards (level intro / complete / finale) --
+    pub overlay: Option<OverlayCard>,
 
     // -- Economy --
     pub economy: crate::economy::ledger::Economy,
@@ -194,6 +299,13 @@ impl AppState {
             current_level: None,
             freeplay_unlocked: false,
             has_save: false,
+            campaign_completed: Vec::new(),
+            saved_level: None,
+
+            menu_screen: MenuScreen::Title,
+            menu_cursor: 0,
+
+            overlay: None,
 
             economy: crate::economy::ledger::Economy::new(crate::economy::ledger::Difficulty::Normal),
             loans: crate::economy::loans::LoanManager::new(crate::economy::ledger::Difficulty::Normal),
@@ -217,6 +329,78 @@ impl AppState {
 
             should_quit: false,
         }
+    }
+
+    /// Number of campaign levels (1..=30) completed, for the menu readouts.
+    pub fn campaign_progress(&self) -> usize {
+        self.campaign_completed
+            .iter()
+            .filter(|l| (1..=30).contains(*l))
+            .count()
+    }
+
+    /// Furthest campaign level ever completed (0 if none). Levels up to
+    /// furthest+1 are unlocked in the level-select grid.
+    pub fn furthest_campaign_level(&self) -> usize {
+        self.campaign_completed
+            .iter()
+            .filter(|l| (1..=30).contains(*l))
+            .max()
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// A campaign level is selectable when it is not beyond furthest+1.
+    pub fn is_level_unlocked(&self, level: usize) -> bool {
+        level >= 1 && level <= self.furthest_campaign_level() + 1
+    }
+
+    /// The title-screen entries in display order. Shared by the renderer
+    /// and the menu key handler so cursor indices always agree.
+    pub fn title_entries(&self) -> Vec<TitleEntry> {
+        let done = self.campaign_progress();
+        let mut entries = vec![
+            TitleEntry {
+                key: '1',
+                name: "Campaign",
+                sub: if done == 0 {
+                    "30-level vim curriculum".to_string()
+                } else {
+                    format!("{done}/30 complete")
+                },
+                action: TitleAction::Campaign,
+            },
+            TitleEntry {
+                key: '2',
+                name: "Sandbox",
+                sub: "open factory · economy · research".to_string(),
+                action: TitleAction::Sandbox,
+            },
+        ];
+        if self.has_save {
+            entries.push(TitleEntry {
+                key: '3',
+                name: "Continue",
+                sub: match self.saved_level {
+                    Some(l) if (1..=30).contains(&l) => format!("resume at level {l}"),
+                    _ => "resume your save".to_string(),
+                },
+                action: TitleAction::Continue,
+            });
+        }
+        entries.push(TitleEntry {
+            key: 'h',
+            name: "Help",
+            sub: String::new(),
+            action: TitleAction::Help,
+        });
+        entries.push(TitleEntry {
+            key: 'q',
+            name: "Quit",
+            sub: String::new(),
+            action: TitleAction::Quit,
+        });
+        entries
     }
 
     /// Returns the list of visual-mode selected tiles (if in a visual mode).

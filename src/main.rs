@@ -40,6 +40,7 @@ fn main() -> io::Result<()> {
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
     let (term_w, term_h) = crossterm::terminal::size().unwrap_or((80, 24));
     let mut session = GameSession::new(term_w as usize, term_h as usize);
+    session.autosave_enabled = true;
 
     let mut last_frame = Instant::now();
 
@@ -115,16 +116,22 @@ fn render_frame(frame: &mut ratatui::Frame, session: &GameSession) {
     // Game grid
     ui::grid_render::render_grid(frame, areas.game_grid, app, &session.viewport);
 
-    // Sidebar
+    // Command dock (sidebar) — pass the viewport so the minimap can outline it
     if let Some(area) = areas.sidebar {
-        ui::sidebar::render_sidebar(frame, area, app);
+        ui::sidebar::render_command_dock(frame, area, app, Some(&session.viewport));
     }
 
-    // Status bar
-    ui::statusbar::render_statusbar(frame, areas.status_bar, app);
+    // Status bar (zoom indicator reads the viewport tile scale)
+    ui::statusbar::render_statusbar_ex(frame, areas.status_bar, app, Some(session.viewport.scale));
 
     // Popup overlay
     if app.popup.is_some() {
         ui::popup::render_popup(frame, size, app);
+    }
+
+    // Overlay cards (level intro / complete / finale) render on top of
+    // EVERYTHING. Fall-through input: any key dismisses AND still executes.
+    if let Some(ref card) = app.overlay {
+        ui::menu::render_overlay_card(frame, size, app, card);
     }
 }

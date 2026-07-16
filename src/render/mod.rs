@@ -4,5 +4,6 @@ pub mod glyphs;
 pub mod highlights;
 pub mod particles;
 pub mod splits;
+pub mod sprites;
 pub mod trails;
 pub mod viewport;

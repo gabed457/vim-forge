@@ -291,6 +291,11 @@ pub enum Command {
     /// gi — jump to the position of the last insert-mode session.
     JumpLastInsert,
 
+    // Viewport zoom (zi/zo/zf — tile scale 1..=3)
+    ZoomIn,
+    ZoomOut,
+    ZoomFit,
+
     // Viewport scrolling (zz/zt/zb, Ctrl-d/u/f/b)
     ScrollCenterCursor,
     ScrollCursorTop,

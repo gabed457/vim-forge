@@ -1053,12 +1053,16 @@ impl VimParser {
         }
     }
 
-    /// Handle the key after `z`: viewport positioning (zz/zt/zb).
+    /// Handle the key after `z`: viewport positioning (zz/zt/zb) and
+    /// tile zoom (zi = zoom in, zo = zoom out, zf = re-fit whole map).
     fn handle_z_prefix(&mut self, key: KeyEvent) -> Vec<Command> {
         let cmd = match key.code {
             KeyCode::Char('z') => Some(Command::ScrollCenterCursor),
             KeyCode::Char('t') => Some(Command::ScrollCursorTop),
             KeyCode::Char('b') => Some(Command::ScrollCursorBottom),
+            KeyCode::Char('i') => Some(Command::ZoomIn),
+            KeyCode::Char('o') => Some(Command::ZoomOut),
+            KeyCode::Char('f') => Some(Command::ZoomFit),
             _ => None,
         };
         self.reset_pending();

@@ -12,8 +12,16 @@ const BAR_BG: Color = Color::Rgb(24, 28, 38);
 /// Render the status bar at the bottom of the screen, vim-style:
 ///
 /// `[ MODE ]` chip with per-mode color | status message ...
-/// ... cash | tick | pending keys (showcmd) | `● REC @a` | `[col,row]`
+/// ... zoom | level | cash | tick | pending keys (showcmd) | `● REC @a` | `[col,row]`
+///
+/// Back-compatible entry point (no zoom indicator).
 pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
+    render_statusbar_ex(frame, area, app, None);
+}
+
+/// Full status bar. `zoom_scale` is the viewport tile scale (S in {1,2,3});
+/// pass `None` to omit the zoom indicator.
+pub fn render_statusbar_ex(frame: &mut Frame, area: Rect, app: &AppState, zoom_scale: Option<u8>) {
     if area.height == 0 || area.width == 0 {
         return;
     }
@@ -47,8 +55,9 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
         } else {
             Style::default().fg(Color::Rgb(150, 155, 170)).bg(bar_bg)
         };
-        // Truncate message to fit
-        let max_msg_len = (area.width as usize).saturating_sub(44);
+        // Truncate message to fit (reserve room for the right-side readouts:
+        // zoom, level, cash, tick, showcmd, REC, position)
+        let max_msg_len = (area.width as usize).saturating_sub(56);
         let msg: String = if app.status_message.chars().count() > max_msg_len {
             let cut: String = app
                 .status_message
@@ -63,8 +72,29 @@ pub fn render_statusbar(frame: &mut Frame, area: Rect, app: &AppState) {
     }
 
     // -- Right side, built right-to-left conceptually:
-    //    cash | tick | showcmd | REC | position
+    //    zoom | level | cash | tick | showcmd | REC | position
     let mut right_spans: Vec<Span> = Vec::new();
+
+    // Zoom indicator (⌕2x), when the caller passes the viewport tile scale.
+    if let Some(scale) = zoom_scale {
+        right_spans.push(Span::styled(
+            format!("\u{2315}{}x ", scale),
+            Style::default().fg(Color::Rgb(140, 170, 210)).bg(bar_bg),
+        ));
+    }
+
+    // Level progress chip (campaign/tutorial levels only).
+    if let Some(level) = app.current_level {
+        if level <= crate::levels::config::total_levels() {
+            right_spans.push(Span::styled(
+                format!("L{}/{} ", level, crate::levels::config::total_levels()),
+                Style::default()
+                    .fg(Color::Rgb(120, 190, 255))
+                    .bg(bar_bg)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+    }
 
     // Cash readout. Tutorial levels use a near-infinite sentinel balance —
     // render those as ∞ instead of a 19-digit wall of numbers.

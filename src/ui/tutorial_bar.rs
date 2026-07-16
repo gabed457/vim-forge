@@ -10,14 +10,15 @@ use crate::levels::config::{get_level, CompletionCondition};
 use crate::tutorial::engine::TutorialState;
 use crate::tutorial::hints;
 
-/// Background color for the tutorial hint bar.
+/// Background color for the top bar.
 const TUTORIAL_BG: Color = Color::Rgb(30, 30, 60);
 
-/// Render the tutorial hint bar (3 rows at top of screen).
+/// Render the 2-row top bar.
 ///
-/// Row 1: Level name + entity legend (colored to match in-game glyphs)
-/// Row 2: Goal with progress indicator
-/// Row 3: Current hint with counter
+/// Row 1: level chip + objective + live progress (right-aligned).
+/// Row 2: hint carousel (key-caps highlighted) + taught-keys strip (right).
+///
+/// On short terminals the layout hands us a 1-row area; only row 1 renders.
 pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &TutorialState) {
     if area.height == 0 || area.width == 0 {
         return;
@@ -30,8 +31,8 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
         .fg(Color::Rgb(6, 22, 30))
         .bg(Color::Rgb(80, 200, 255))
         .add_modifier(Modifier::BOLD);
-    let goal_style = Style::default()
-        .fg(Color::Rgb(255, 220, 60))
+    let name_style = Style::default()
+        .fg(Color::Rgb(80, 200, 255))
         .bg(TUTORIAL_BG)
         .add_modifier(Modifier::BOLD);
     let progress_style = Style::default()
@@ -45,38 +46,31 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // Row 1: Level chip + colored entity legend
-    let mut row1 = vec![
+    // -- Row 1: level chip + objective + live progress (right-aligned) --
+    let mut row1: Vec<Span> = vec![
         Span::styled(format!(" LEVEL {} ", level), chip_style),
-        Span::styled(
-            format!(" {} ", name),
-            Style::default()
-                .fg(Color::Rgb(80, 200, 255))
-                .bg(TUTORIAL_BG)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("\u{2502} ", style),
+        Span::styled(format!(" {} ", name), name_style),
+        Span::styled("\u{25B8} ", style),
     ];
-    row1.extend(entity_legend_spans(level));
+    let progress = progress_text(app, tut);
+    // The live progress readout always stays visible: truncate the objective
+    // prose (with an ellipsis) rather than letting it push progress offscreen.
+    let chip_len: usize = row1.iter().map(|s| s.content.chars().count()).sum();
+    let progress_len = progress.chars().count() + 2;
+    let obj_budget = (area.width as usize).saturating_sub(chip_len + progress_len);
+    let objective_text = truncate_ellipsis(objective, obj_budget);
+    row1.extend(highlight_keys(&objective_text, bold, TUTORIAL_BG));
+    let progress_span = Span::styled(format!("{} ", progress), progress_style);
+    push_right_aligned(&mut row1, vec![progress_span], area.width, style);
     lines.push(Line::from(row1));
 
-    // Row 2: Goal + progress indicator
+    // -- Row 2: hint carousel + taught-keys strip (right-aligned) --
     if area.height >= 2 {
-        let progress = progress_text(app, tut);
-        let mut row2 = vec![Span::styled(" \u{25B8} GOAL ", goal_style)];
-        row2.extend(highlight_keys(objective, bold, TUTORIAL_BG));
-        row2.push(Span::styled(" ", style));
-        row2.push(Span::styled(progress, progress_style));
-        lines.push(Line::from(row2));
-    }
-
-    // Row 3: Current hint with counter, key names highlighted
-    if area.height >= 3 {
         let config = get_level(level);
         let num_hints = config.as_ref().map(|c| c.hints.len()).unwrap_or(0);
-        let hint_text = hints::get_hint(level, tut.current_hint_index)
-            .unwrap_or("Explore the level!");
-        let hint_style = Style::default()
+        let hint_text =
+            hints::get_hint(level, tut.current_hint_index).unwrap_or("Explore the level!");
+        let hint_chip_style = Style::default()
             .fg(Color::Rgb(200, 160, 80))
             .bg(TUTORIAL_BG)
             .add_modifier(Modifier::BOLD);
@@ -88,16 +82,104 @@ pub fn render_tutorial_bar(frame: &mut Frame, area: Rect, app: &AppState, tut: &
         } else {
             String::new()
         };
-        let mut row3 = vec![
-            Span::styled(" \u{2726} Hint ", hint_style),
+        let mut row2: Vec<Span> = vec![
+            Span::styled(" \u{2726} HINT ", hint_chip_style),
             Span::styled(counter, counter_style),
         ];
-        row3.extend(highlight_keys(hint_text, style, TUTORIAL_BG));
-        lines.push(Line::from(row3));
+        row2.extend(highlight_keys(hint_text, style, TUTORIAL_BG));
+
+        // Taught-keys strip: the keys this level is teaching, as key-caps.
+        let keys = taught_keys(level);
+        if !keys.is_empty() {
+            let mut strip: Vec<Span> = vec![Span::styled(
+                "\u{2328} ",
+                Style::default().fg(Color::Rgb(130, 140, 165)).bg(TUTORIAL_BG),
+            )];
+            let key_style = key_token_style(TUTORIAL_BG);
+            for (i, key) in keys.iter().enumerate() {
+                if i > 0 {
+                    strip.push(Span::styled(
+                        "\u{00B7}",
+                        Style::default().fg(Color::Rgb(70, 75, 110)).bg(TUTORIAL_BG),
+                    ));
+                }
+                strip.push(Span::styled(key.clone(), key_style));
+            }
+            strip.push(Span::styled(" ", style));
+            push_right_aligned(&mut row2, strip, area.width, style);
+        }
+        lines.push(Line::from(row2));
     }
 
     let paragraph = Paragraph::new(lines).style(style);
     frame.render_widget(paragraph, area);
+}
+
+/// Append `right` spans to `row`, padded so they hug the right edge.
+/// If the row is already too wide, the right group is dropped rather than
+/// overflowing (the Paragraph would clip mid-span otherwise).
+fn push_right_aligned<'a>(
+    row: &mut Vec<Span<'a>>,
+    right: Vec<Span<'a>>,
+    width: u16,
+    pad_style: Style,
+) {
+    let left_len: usize = row.iter().map(|s| s.content.chars().count()).sum();
+    let right_len: usize = right.iter().map(|s| s.content.chars().count()).sum();
+    let total = left_len + right_len;
+    if (width as usize) > total {
+        row.push(Span::styled(
+            " ".repeat(width as usize - total),
+            pad_style,
+        ));
+        row.extend(right);
+    } else if (width as usize) > left_len + right_len.min(4) {
+        // Tight fit: single space separator, let the edge clip.
+        row.push(Span::styled(" ", pad_style));
+        row.extend(right);
+    }
+}
+
+/// The keys a level teaches, for the row-2 strip.
+///
+/// Prefers the level's `allowed_commands` whitelist (exactly the keys the
+/// player may use); when a level allows everything, falls back to the key
+/// tokens mentioned in its first hint.
+fn taught_keys(level: usize) -> Vec<String> {
+    let config = match get_level(level) {
+        Some(c) => c,
+        None => return Vec::new(),
+    };
+    if let Some(allowed) = &config.allowed_commands {
+        return allowed.iter().take(10).map(|s| s.to_string()).collect();
+    }
+    // Fallback: pull the key tokens out of the hints (first hints first).
+    let mut keys: Vec<String> = Vec::new();
+    'hints: for hint in &config.hints {
+        for word in hint.split_whitespace() {
+            let core = word
+                .trim_matches(|c: char| matches!(c, '(' | ')' | '.' | ',' | '!' | '?' | ':' | ';'));
+            if !core.is_empty() && is_key_token(core) && !keys.iter().any(|k| k == core) {
+                keys.push(core.to_string());
+                if keys.len() >= 8 {
+                    break 'hints;
+                }
+            }
+        }
+    }
+    keys
+}
+
+/// Truncate `text` to at most `budget` chars, appending `…` when cut.
+fn truncate_ellipsis(text: &str, budget: usize) -> String {
+    if text.chars().count() <= budget {
+        return text.to_string();
+    }
+    if budget == 0 {
+        return String::new();
+    }
+    let cut: String = text.chars().take(budget - 1).collect();
+    format!("{}\u{2026}", cut.trim_end())
 }
 
 // ---------------------------------------------------------------------------
@@ -183,107 +265,6 @@ fn is_simple_key(word: &str) -> bool {
         // Macros, registers, marks, search
         | "q" | "qa" | "@a" | "\"a" | "ma" | "mb" | "mc" | "md" | "'a" | "'b" | "fs" | "fb"
     )
-}
-
-/// Build colored legend spans showing key-action mappings for the current level.
-/// Uses gold for keys and white for descriptions.
-fn entity_legend_spans(level: usize) -> Vec<Span<'static>> {
-    let bg = TUTORIAL_BG;
-    let key_color = Color::Rgb(255, 200, 80);
-    let desc_color = Color::White;
-
-    let k = |text: &str| -> Span<'static> {
-        Span::styled(
-            text.to_string(),
-            Style::default()
-                .fg(key_color)
-                .bg(bg)
-                .add_modifier(Modifier::BOLD),
-        )
-    };
-    let d = |text: &str| -> Span<'static> {
-        Span::styled(
-            text.to_string(),
-            Style::default().fg(desc_color).bg(bg),
-        )
-    };
-
-    match level {
-        1 => vec![
-            k("hjkl"), d("=Move  "),
-            k("5l"), d("=Move 5 right  "),
-            k("0"), d("/"), k("$"), d("=Line start/end  "),
-            k("gg"), d("/"), k("G"), d("=Top/Bottom"),
-        ],
-        2 => vec![
-            k("i"), d("=Insert mode  "),
-            k("c"), d("=Place belt  "),
-            k("Esc"), d("=Back to Normal  "),
-            k("hjkl"), d("=Move (insert)"),
-        ],
-        3 => vec![
-            k("c"), d("=Belt  "),
-            k("s"), d("=Smelter (3x3)  "),
-            k("k"), d("/"), k("j"), d("=Up/Down (align rows)  "),
-            k("Arrows"), d("=Set facing"),
-        ],
-        4 => vec![
-            k("c"), d("=Belt  "),
-            k("s"), d("=Smelter  "),
-            k("a"), d("=Assembler (3x4)  "),
-            k("Arrows"), d("=Turn belts"),
-        ],
-        5 => vec![
-            k("~"), d("=Rotate CW  "),
-            k("x"), d("=Delete  "),
-            k("d"), d("+motion=Range delete  "),
-            k("i"), d("=Insert"),
-        ],
-        6 => vec![
-            k("yy"), d("=Copy row  "),
-            k("p"), d("=Paste  "),
-            k("j"), d("=Move down  "),
-            k("Esc"), d("=Normal mode"),
-        ],
-        7 => vec![
-            k("\"a"), d("=Select register a  "),
-            k("2yy"), d("=Copy 2 rows  "),
-            k("p"), d("=Paste from register"),
-        ],
-        8 => vec![
-            k("Ctrl-v"), d("=Visual Block  "),
-            k("y"), d("=Copy block  "),
-            k("p"), d("=Paste block"),
-        ],
-        9 => vec![
-            k("fs"), d("=Find smelter  "),
-            k("fb"), d("=Find bin  "),
-            k("/"), d("=Search  "),
-            k("%"), d("=Follow chain"),
-        ],
-        10 => vec![
-            k("qa"), d("=Record macro  "),
-            k("q"), d("=Stop  "),
-            k("@a"), d("=Replay  "),
-            k("4@a"), d("=Replay 4x"),
-        ],
-        11 => vec![
-            k("~"), d("=Rotate CW  "),
-            k("."), d("=Repeat last edit  "),
-            k("l"), d("=Move right"),
-        ],
-        12 => vec![
-            k("ma"), d("=Set mark a  "),
-            k("'a"), d("=Jump to mark a  "),
-            k("mb"), d("/"), k("mc"), d("/"), k("md"), d("=More marks"),
-        ],
-        13 => vec![
-            k("Ctrl-w v"), d("=V-split  "),
-            k("Ctrl-w s"), d("=H-split  "),
-            k("Ctrl-w h/l"), d("=Switch panes"),
-        ],
-        _ => vec![],
-    }
 }
 
 /// Compute progress text for the current level's completion condition.

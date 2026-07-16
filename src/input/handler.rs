@@ -1272,6 +1272,10 @@ impl InputState {
                 self.status_message = "Rotate panes".to_string();
             }
 
+            // Viewport zoom (zi/zo/zf): handled entirely by the session,
+            // which owns the real Viewport. Nothing to mirror here.
+            Command::ZoomIn | Command::ZoomOut | Command::ZoomFit => {}
+
             // Viewport scrolling. The InputState only mirrors viewport_top;
             // the real Viewport is adjusted by the session (which owns it).
             Command::ScrollCenterCursor => {
